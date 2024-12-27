@@ -105,6 +105,18 @@ void logPrintf(const char *format, ...)
 #endif
 }
 
+void displayText(uint8_t xpos, uint8_t y, EFontStyle style, const char *format, ...)
+{
+  static char buffer[25];
+  va_list args;
+
+  va_start(args, format);
+  vsnprintf(buffer, sizeof(buffer), format, args);
+  va_end(args);
+
+  ssd1306_printFixed(xpos, y, buffer, style);
+}
+
 void resetSlot(int slotIdx)
 {
   Slot &slot = slotList[slotIdx]; // slot to reset
@@ -133,8 +145,10 @@ void saveSlot(int slotIdx)
   EEPROM.put(crc8Address, crc8);
 }
 
-void loadSlots()
+size_t loadSlots()
 {
+  size_t filledCount = 0;
+
   for (size_t slotIdx = 0; slotIdx < SLOT_COUNT_MAX; slotIdx++)
   {
     Slot &slot = slotList[slotIdx]; // current slot
@@ -149,7 +163,15 @@ void loadSlots()
     if (calcCrc8 == crc8)
     {
       // Slot is valid on EEPROM
-      logPrintf("%s is %s", slot.name, slot.isFilled ? "filled" : "empty");
+      if (slot.isFilled == true)
+      {
+        logPrintf("%s: %u %lu/%u", slot.name, slot.signal.protocol, slot.signal.value, slot.signal.bitLength);
+        filledCount++;
+      }
+      else
+      {
+        logPrintf("%s: empty", slot.name);
+      }
     }
     else
     {
@@ -159,6 +181,8 @@ void loadSlots()
       saveSlot(slotIdx);
     }
   }
+
+  return filledCount;
 }
 
 void eraseSlots()
@@ -251,11 +275,15 @@ void setup()
   // Initialize display
   ssd1306_128x64_i2c_init();
   ssd1306_fillScreen(0x00);
-  ssd1306_setFixedFont(ssd1306xled_font6x8);
-  ssd1306_printFixed(0, 8, startString, STYLE_BOLD);
+
+  ssd1306_setFixedFont(ssd1306xled_font8x16);
+  displayText(0, 0, STYLE_BOLD, startString);
 
   // eraseSlots(); // uncomment to erase all slots in the storage
-  loadSlots();
+  size_t filledCount = loadSlots();
+
+  ssd1306_setFixedFont(ssd1306xled_font6x8);
+  displayText(0, 56, STYLE_NORMAL, "Slots used: %d/%d", filledCount, SLOT_COUNT_MAX);
 }
 
 void loop()
