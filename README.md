@@ -10,3 +10,4 @@ Pinout (arduino nano):
 - button RIGHT: D7
 - display SDA: A4
 - display SCL: A5
+- battery IN: A0
