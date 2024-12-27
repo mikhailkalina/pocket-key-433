@@ -1,5 +1,5 @@
-# pocket-key-433
-Portable device to sniff and generate 433MHz radio key signals
+# Pocket Key 433
+Portable device pocket size to sniff and generate 433MHz radio remote control signals.
 
 Pinout (arduino nano):
 - radio RX: D2
@@ -8,6 +8,6 @@ Pinout (arduino nano):
 - button DOWN: D5
 - button LEFT: D6
 - button RIGHT: D7
+- battery IN: A0
 - display SDA: A4
 - display SCL: A5
-- battery IN: A0
