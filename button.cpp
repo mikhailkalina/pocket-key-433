@@ -45,11 +45,11 @@ void BTN_initialize()
 /**
  * @brief Handle buttons changes 
  * 
- * @return true if new button action detected, false otherwise
+ * @return button ID if action detected, BTN_ID_NONE otherwise
  */
-bool BTN_handle()
+ButtonId BTN_handle()
 {
-    bool isActionDetected = false;
+    ButtonId actionBtnId = BTN_ID_NONE;
     // Get current system time
     unsigned long currentTimeMs = millis();
 
@@ -97,11 +97,12 @@ bool BTN_handle()
 
         if (button.action != BTN_ACTION_NONE)
         {
-            isActionDetected = true;
+            actionBtnId = btnId;
+            break;
         }
     }
 
-    return isActionDetected;
+    return actionBtnId;
 }
 
 /**

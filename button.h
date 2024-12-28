@@ -43,9 +43,9 @@ void BTN_initialize();
 /**
  * @brief Handle buttons changes 
  * 
- * @return true if new button action detected, false otherwise
+ * @return button ID if action detected, BTN_ID_NONE otherwise
  */
-bool BTN_handle();
+ButtonId BTN_handle();
 
 /**
  * @brief Return current state for specified button
