@@ -1,3 +1,5 @@
+#pragma once
+
 #define SIGNAL_PROTOCOL_INV (0)
 #define SIGNAL_PROTOCOL_MIN (1)
 #define SIGNAL_PROTOCOL_MAX (12)

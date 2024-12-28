@@ -1,3 +1,5 @@
+#pragma once
+
 /**
  * @brief Button identifiers
  */

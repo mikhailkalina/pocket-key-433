@@ -1,3 +1,5 @@
+#pragma once
+
 #define SLOT_COUNT_MAX (20)
 
 #include "signal.h"

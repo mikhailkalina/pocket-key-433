@@ -1,3 +1,5 @@
+#pragma once
+
 /**
  * @brief Print formatted string to the log
  * 

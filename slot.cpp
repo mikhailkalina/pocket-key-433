@@ -3,6 +3,7 @@
 #include <EEPROM.h>
 
 #include "log.h"
+#include "signal.h"
 #include "slot.h"
 
 #define SLOT_NAME_LENGTH_MAX (10)
