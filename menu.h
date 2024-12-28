@@ -1,18 +1,18 @@
 #pragma once
 
+#include "button.h"
+
 // Menu function prototype
 typedef void (*MenuFunction)(int param);
 
 /**
- * @brief Menu item structure
+ * @brief Navigate user through the menu according to the buttons actions
+ * 
+ * @param buttonId Button that triggered the action
  */
-struct MenuItem
-{
-    const MenuItem *parent;
-    const MenuItem *prev;
-    const MenuItem *next;
-    const MenuItem *child;
-    MenuFunction func;
-    int param;
-    const char *text;
-};
+void MENU_navigate(ButtonId buttonId);
+
+/**
+ * @brief Draw menu
+ */
+void MENU_draw();
