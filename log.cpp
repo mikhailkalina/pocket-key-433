@@ -1,9 +1,14 @@
-#include <Arduino.h>
-
 #include "log.h"
 
-// Local buffer for log output
-static char buffer[100];
+#include <Arduino.h>
+
+using namespace Log;
+
+namespace
+{
+  // Local buffer for log output
+  char buffer[50];
+} // namespace
 
 /**
  * @brief Print formatted string to the log
@@ -11,7 +16,7 @@ static char buffer[100];
  * @param format
  * @param ...
  */
-void LOG_printf(const char *format, ...)
+void Log::printf(const char *format, ...)
 {
   va_list args;
 

@@ -1,161 +1,134 @@
-#include <Arduino.h>
-
 #include "menu.h"
+
+#include <stdint.h>
+
 #include "display.h"
 
-#define MENU_ROW_COUNT (5)
-#define MENU_ROW_PIXELS (8)
+using namespace Menu;
 
-/**
- * @brief Menu item structure
- */
-struct MenuItem
+namespace
 {
-    const MenuItem *parent;
-    const MenuItem *prev;
-    const MenuItem *next;
-    const MenuItem *child;
-    MenuFunction func;
-    int param;
-    const char *text;
-};
+    constexpr uint8_t pageItemCount = 5;
+    constexpr uint8_t headerHeightPix = 16;
+    constexpr uint8_t itemHeightPix = 8;
+    constexpr uint8_t navInfoYPosPix = headerHeightPix + pageItemCount * itemHeightPix;
 
-// String for start display
-const char startString[] = "Pocket Key 433";
+    // String for root item header
+    const char rootHeader[] = "Pocket Key";
 
-extern const MenuItem slotsMenu;
-extern const MenuItem settingsMenu;
-extern const MenuItem infoMenu;
-
-extern const MenuItem slot1Menu;
-extern const MenuItem slot2Menu;
-extern const MenuItem slot3Menu;
-extern const MenuItem slot4Menu;
-extern const MenuItem slot5Menu;
-extern const MenuItem slot6Menu;
-extern const MenuItem slot7Menu;
-extern const MenuItem slot8Menu;
-extern const MenuItem slot9Menu;
-extern const MenuItem slot10Menu;
-
-const MenuItem slotsMenu = {NULL, NULL, &settingsMenu, &slot1Menu, NULL, 0, "Slots"};
-const MenuItem settingsMenu = {NULL, &slotsMenu, &infoMenu, NULL, NULL, 0, "Settings"};
-const MenuItem infoMenu = {NULL, &settingsMenu, NULL, NULL, NULL, 0, "Info"};
-
-const MenuItem slot1Menu = {&slotsMenu, NULL, &slot2Menu, NULL, NULL, 0, "Slot 1"};
-const MenuItem slot2Menu = {&slotsMenu, &slot1Menu, &slot3Menu, NULL, NULL, 0, "Slot 2"};
-const MenuItem slot3Menu = {&slotsMenu, &slot2Menu, &slot4Menu, NULL, NULL, 0, "Slot 3"};
-const MenuItem slot4Menu = {&slotsMenu, &slot3Menu, &slot5Menu, NULL, NULL, 0, "Slot 4"};
-const MenuItem slot5Menu = {&slotsMenu, &slot4Menu, &slot6Menu, NULL, NULL, 0, "Slot 5"};
-const MenuItem slot6Menu = {&slotsMenu, &slot5Menu, &slot7Menu, NULL, NULL, 0, "Slot 6"};
-const MenuItem slot7Menu = {&slotsMenu, &slot6Menu, &slot8Menu, NULL, NULL, 0, "Slot 7"};
-const MenuItem slot8Menu = {&slotsMenu, &slot7Menu, &slot9Menu, NULL, NULL, 0, "Slot 8"};
-const MenuItem slot9Menu = {&slotsMenu, &slot8Menu, &slot10Menu, NULL, NULL, 0, "Slot 9"};
-const MenuItem slot10Menu = {&slotsMenu, &slot9Menu, NULL, NULL, NULL, 0, "Slot 10"};
-
-const MenuItem *pCurrentMenu = &slotsMenu;
+    const Item *pCurrentItem = nullptr;
+} // namespace
 
 /**
  * @brief Navigate user through the menu according to the buttons actions
- * 
+ *
  * @param buttonId Button that triggered the action
+ * @return Current selected menu item
  */
-void MENU_navigate(ButtonId buttonId)
+const Item *Menu::navigate(Action action)
 {
-  const MenuItem *pNewMenu = pCurrentMenu;
+    if (pCurrentItem != nullptr)
+    {
+        const Item *pNewItem = pCurrentItem;
 
-  ButtonAction action = BTN_getAction(buttonId);
-  if (action == BTN_ACTION_CLICK)
-  {
-    if (buttonId == BTN_ID_LEFT && pCurrentMenu->parent != NULL)
-    {
-      pNewMenu = pCurrentMenu->parent;
-    }
-    if (buttonId == BTN_ID_UP && pCurrentMenu->prev != NULL)
-    {
-      pNewMenu = pCurrentMenu->prev;
-    }
-    if (buttonId == BTN_ID_DOWN && pCurrentMenu->next != NULL)
-    {
-      pNewMenu = pCurrentMenu->next;
-    }
-    if (buttonId == BTN_ID_RIGHT && pCurrentMenu->child != NULL)
-    {
-      pNewMenu = pCurrentMenu->child;
-    }
-  }
+        switch (action)
+        {
+        case Action::Exit:
+            pNewItem = pCurrentItem->parent;
+            break;
 
-  if (pCurrentMenu != pNewMenu)
-  {
-    pCurrentMenu = pNewMenu;
-    MENU_draw();
-  }
+        case Action::Prev:
+            pNewItem = pCurrentItem->prev;
+            break;
+
+        case Action::Next:
+            pNewItem = pCurrentItem->next;
+            break;
+
+        case Action::Enter:
+            pNewItem = pCurrentItem->child;
+            break;
+
+        default:
+            break;
+        }
+
+        if (pNewItem != pCurrentItem)
+        {
+            draw(pNewItem);
+        }
+    }
+
+    return pCurrentItem;
 }
 
 /**
- * @brief Draw menu
+ * @brief Draw specified menu item
+ * Set menu item as current for navigation
+ *
+ * @param pItem Menu item to draw
  */
-void MENU_draw()
+void Menu::draw(const Item *pItem)
 {
-  // Show parent header text
-  const char *headerText = pCurrentMenu->parent != NULL ? pCurrentMenu->parent->text : startString;
-  DISP_printf(0, 0, STYLE_BOLD, TEXT_SIZE_16, headerText);
-
-  size_t prevItemCount = 0;
-  const MenuItem *pItem = pCurrentMenu->prev;
-  while (pItem != NULL)
-  {
-    prevItemCount++;
-    pItem = pItem->prev;
-  }
-
-  size_t nextItemCount = 0;
-  pItem = pCurrentMenu->next;
-  while (pItem != NULL)
-  {
-    nextItemCount++;
-    pItem = pItem->next;
-  }
-
-  // Show navigation info
-  size_t menuItemIndex = prevItemCount;
-  size_t totalItemCount = prevItemCount + 1 + nextItemCount;
-  DISP_printf(0, 56, STYLE_NORMAL, TEXT_SIZE_8, "%d/%d", menuItemIndex + 1, totalItemCount);
-
-  // Find the first row item
-  size_t rowOffset = menuItemIndex % MENU_ROW_COUNT;
-  pItem = pCurrentMenu;
-  while (rowOffset > 0)
-  {
-    pItem = pItem->prev;
-    rowOffset--;
-  }
-
-  // Fill not empty rows
-  while (rowOffset < MENU_ROW_COUNT && pItem != NULL)
-  {
-    uint8_t yPos = 16 + rowOffset * MENU_ROW_PIXELS;
-
-    if (pItem == pCurrentMenu)
+    if (pItem != nullptr)
     {
-      DISP_printf(0, yPos, STYLE_BOLD, TEXT_SIZE_8, ">%s", pItem->text);
+        pCurrentItem = pItem;
+
+        // Show parent header text
+        const char *headerText = pCurrentItem->parent != nullptr ? pCurrentItem->parent->text : rootHeader;
+        Display::setStyle(Display::Style::Bold);
+        Display::setSize(Display::Size::Bits_16);
+        Display::printf(0, 0, "%-16.16s", headerText);
+
+        // Count previous items
+        uint8_t prevItemCount = 0;
+        pItem = pCurrentItem->prev;
+        while (pItem != nullptr)
+        {
+            prevItemCount++;
+            pItem = pItem->prev;
+        }
+
+        // Count next items
+        uint8_t nextItemCount = 0;
+        pItem = pCurrentItem->next;
+        while (pItem != nullptr)
+        {
+            nextItemCount++;
+            pItem = pItem->next;
+        }
+
+        // Show navigation info
+        uint8_t itemIdx = prevItemCount;
+        uint8_t itemsCount = prevItemCount + 1 + nextItemCount;
+        Display::printf(0, navInfoYPosPix, "%2u/%-2u", itemIdx + 1, itemsCount);
+
+        // Find the first item on current page
+        uint8_t itemOffset = itemIdx % pageItemCount;
+        pItem = pCurrentItem;
+        while (itemOffset > 0)
+        {
+            pItem = pItem->prev;
+            itemOffset--;
+        }
+
+        // Fill menu items on current page
+        while (itemOffset < pageItemCount)
+        {
+            const uint8_t yPosPix = headerHeightPix + itemOffset * itemHeightPix;
+
+            if (pItem == pCurrentItem)
+            {
+                Display::setStyle(Display::Style::Bold);
+                Display::printf(0, yPosPix, ">%-20.20s", pItem->text);
+            }
+            else
+            {
+                Display::printf(0, yPosPix, " %-20.20s", pItem ? pItem->text : "");
+            }
+
+            pItem = pItem ? pItem->next : nullptr;
+            itemOffset++;
+        }
     }
-    else
-    {
-      DISP_printf(0, yPos, STYLE_NORMAL, TEXT_SIZE_8, " %s", pItem->text);
-    }
-
-    pItem = pItem->next;
-    rowOffset++;
-  }
-
-  // Clear empty rows if any
-  while (rowOffset < MENU_ROW_COUNT)
-  {
-    uint8_t yPos = 16 + rowOffset * MENU_ROW_PIXELS;
-
-    DISP_printf(0, yPos, STYLE_NORMAL, TEXT_SIZE_8, "");
-
-    rowOffset++;
-  }
 }

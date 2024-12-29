@@ -1,25 +1,34 @@
-#include <Arduino.h>
+#include "slot.h"
+
+#include <stdint.h>
+
 #include <CRC.h>
 #include <EEPROM.h>
 
 #include "log.h"
-#include "signal.h"
-#include "slot.h"
 
-#define SLOT_NAME_LENGTH_MAX (10)
+using namespace Slot;
 
-/**
- * @brief Storage slot structure
- */
-struct Slot
+namespace
 {
-    char name[SLOT_NAME_LENGTH_MAX + 1]; // 10 chars + 1 end of line
-    bool isFilled;
-    Signal signal;
-};
+    constexpr uint8_t nameLengthMax = 10;
 
-// Storage slot list
-Slot slotList[SLOT_COUNT_MAX] = {0};
+    /**
+     * @brief Slot item structure
+     */
+    struct SlotItem
+    {
+        char name[nameLengthMax + 1]; // 10 chars + 1 end of line
+        bool isFilled;
+        Signal signal;
+    };
+
+    // Slot item size + CRC size
+    constexpr uint8_t slotEepromSize = sizeof(SlotItem) + sizeof(uint8_t);
+
+    // Storage slot list
+    SlotItem slotList[itemsCount] = {0};
+} // namespace
 
 /**
  * @brief Return signal for specified slot
@@ -27,9 +36,9 @@ Slot slotList[SLOT_COUNT_MAX] = {0};
  * @param slotIdx Slot identifier
  * @return Slot signal
  */
-const Signal &SLOT_getSignal(int slotIdx)
+const Signal &Slot::getSignal(uint8_t slotIdx)
 {
-    const Slot &slot = slotList[slotIdx]; // slot to get signal
+    const SlotItem &slot = slotList[slotIdx]; // slot to get signal
 
     return slot.signal;
 }
@@ -40,17 +49,30 @@ const Signal &SLOT_getSignal(int slotIdx)
  * @param slotIdx Slot identifier
  * @param signal New slot signal
  */
-void SLOT_setSignal(int slotIdx, const Signal &signal)
+void Slot::setSignal(uint8_t slotIdx, const Signal &signal)
 {
-    Slot &slot = slotList[slotIdx]; // slot to set signal
+    SlotItem &slot = slotList[slotIdx]; // slot to set signal
 
     if (slot.isFilled == false)
     {
-        LOG_printf("Fill %s: %u %lu/%u", slot.name, signal.protocol, signal.value, signal.bitLength);
+        Log::printf("Fill %s: %u %lu/%u", slot.name, signal.protocol, signal.value, signal.bitLength);
 
         slot.signal = signal;
         slot.isFilled = true;
     }
+}
+
+/**
+ * @brief Return current slot name
+ *
+ * @param slotIdx Slot identifier
+ * @return Slot name (null-terminated string)
+ */
+const char *Slot::getName(uint8_t slotIdx)
+{
+    const SlotItem &slot = slotList[slotIdx]; // slot to get name
+
+    return slot.name;
 }
 
 /**
@@ -59,9 +81,9 @@ void SLOT_setSignal(int slotIdx, const Signal &signal)
  * @param slotIdx Slot identifier
  * @param name New slot name (null-terminated string)
  */
-void SLOT_setName(int slotIdx, const char *name)
+void Slot::setName(uint8_t slotIdx, const char *name)
 {
-    Slot &slot = slotList[slotIdx]; // slot to set name
+    SlotItem &slot = slotList[slotIdx]; // slot to set name
 
     // Set name to default
     snprintf(slot.name, sizeof(slot.name), "%s", name);
@@ -72,19 +94,19 @@ void SLOT_setName(int slotIdx, const char *name)
  *
  * @param slotIdx
  */
-void SLOT_reset(int slotIdx)
+void Slot::reset(uint8_t slotIdx)
 {
-    Slot &slot = slotList[slotIdx]; // slot to reset
+    SlotItem &slot = slotList[slotIdx]; // slot to reset
 
     // Reset name to default
     snprintf(slot.name, sizeof(slot.name), "Slot %02d", slotIdx + 1);
 
-    LOG_printf("Reset %s", slot.name);
-    
+    Log::printf("Reset %s", slot.name);
+
     // Empty the slot
     slot.isFilled = false;
     // Invalidate the signal
-    slot.signal = SGNL_getInvalid();
+    slot.signal = signalInvalid;
 }
 
 /**
@@ -92,14 +114,14 @@ void SLOT_reset(int slotIdx)
  *
  * @param slotIdx Slot identifier
  */
-void SLOT_save(int slotIdx)
+void Slot::save(uint8_t slotIdx)
 {
-    const Slot &slot = slotList[slotIdx]; // slot to save
+    const SlotItem &slot = slotList[slotIdx]; // slot to save
     uint8_t crc8 = calcCRC8((const uint8_t *)&slot, sizeof(slot));
-    int slotAddress = slotIdx * (sizeof(Slot) + sizeof(crc8)); // Slot size + CRC  size
-    int crc8Address = slotAddress + sizeof(Slot);
+    int slotAddress = slotIdx * slotEepromSize;
+    int crc8Address = slotAddress + sizeof(SlotItem);
 
-    LOG_printf("Save %s", slot.name);
+    Log::printf("Save %s", slot.name);
 
     EEPROM.put(slotAddress, slot);
     EEPROM.put(crc8Address, crc8);
@@ -110,16 +132,16 @@ void SLOT_save(int slotIdx)
  *
  * @return Number of filled slots
  */
-size_t SLOT_loadAll()
+uint8_t Slot::loadAll()
 {
-    size_t filledCount = 0;
+    uint8_t filledCount = 0;
 
-    for (size_t slotIdx = 0; slotIdx < SLOT_COUNT_MAX; slotIdx++)
+    for (uint8_t slotIdx = 0; slotIdx < itemsCount; slotIdx++)
     {
-        Slot &slot = slotList[slotIdx]; // slot to load
+        SlotItem &slot = slotList[slotIdx]; // slot to load
         uint8_t crc8 = 0;
-        int slotAddress = slotIdx * (sizeof(Slot) + sizeof(crc8)); // Slot size + CRC size
-        int crc8Address = slotAddress + sizeof(Slot);
+        int slotAddress = slotIdx * slotEepromSize;
+        int crc8Address = slotAddress + sizeof(SlotItem);
 
         EEPROM.get(slotAddress, slot);
         EEPROM.get(crc8Address, crc8);
@@ -130,20 +152,20 @@ size_t SLOT_loadAll()
             // Slot is valid on EEPROM
             if (slot.isFilled == true)
             {
-                LOG_printf("Load %s: %u %lu/%u", slot.name, slot.signal.protocol, slot.signal.value, slot.signal.bitLength);
+                Log::printf("Load %s: %u %lu/%u", slot.name, slot.signal.protocol, slot.signal.value, slot.signal.bitLength);
                 filledCount++;
             }
             else
             {
-                LOG_printf("%s is empty", slot.name);
+                Log::printf("%s is empty", slot.name);
             }
         }
         else
         {
             // Reset slot if it isn't valid
-            SLOT_reset(slotIdx);
+            reset(slotIdx);
             // Save to the EEPROM
-            SLOT_save(slotIdx);
+            save(slotIdx);
         }
     }
 
@@ -153,10 +175,10 @@ size_t SLOT_loadAll()
 /**
  * @brief Erase all slots on the storage
  */
-void SLOT_eraseAll()
+void Slot::eraseAll()
 {
-    const int storageSize = SLOT_COUNT_MAX * (sizeof(Slot) + sizeof(uint8_t)); // Slot size + CRC size
-    for (int idx = 0; idx < storageSize; idx++)
+    const int itemsSize = itemsCount * (sizeof(SlotItem) + sizeof(uint8_t)); // Slot item size + CRC size
+    for (int idx = 0; idx < itemsSize; idx++)
     {
         // Erase storage with 0xFF
         EEPROM.write(idx, 0xFF);

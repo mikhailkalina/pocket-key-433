@@ -1,31 +1,57 @@
 #pragma once
 
-#include <ssd1306.h>
+#include <stdbool.h>
+#include <stdint.h>
 
-/**
- * @brief Text size identifiers
- */
-enum TextSize
+namespace Display
 {
-  TEXT_SIZE_8,
-  TEXT_SIZE_16,
-  TEXT_SIZE_COUNT,
-};
+  /**
+   * @brief Font style identifiers
+   */
+  enum class Style
+  {
+    Normal,
+    Bold,
+    Italic,
+  };
 
-/**
- * @brief Initialize display
- */
-void DISP_initialize();
+  /**
+   * @brief Font size identifiers
+   */
+  enum class Size
+  {
+    Bits_8,  // 8 bit height
+    Bits_16, // 16 bit height
+  };
 
-/**
- * @brief Print formatted string to the specified position of the display
- * The rest of the row will be automatically cleaned
- * 
- * @param xPos Horisontal position, pixels
- * @param yPos Vertical position, pixels
- * @param style Normal/bold text style
- * @param size Size of the text
- * @param format Formatted string
- * @param ... Parameters for formatted string
- */
-void DISP_printf(uint8_t xPos, uint8_t yPos, EFontStyle style, TextSize size, const char *format, ...);
+  /**
+   * @brief Initialize display
+   */
+  void initialize();
+
+  /**
+   * @brief Set font style for printed text
+   *
+   * @param style New font style
+   * @param isPermanent true if set style is permament, false if temporary
+   */
+  void setStyle(Style style, bool isPermanent = false);
+
+  /**
+   * @brief Set font size for printed text
+   *
+   * @param size New font size
+   * @param isPermanent true if set size is permament, false if temporary
+   */
+  void setSize(Size size, bool isPermanent = false);
+
+  /**
+   * @brief Print formatted string to the specified position of the display
+   *
+   * @param xPos Horisontal position, pixels
+   * @param yPos Vertical position, pixels
+   * @param format Formatted string
+   * @param ... Parameters for formatted string
+   */
+  void printf(uint8_t xPos, uint8_t yPos, const char *format, ...);
+} // namespace Display

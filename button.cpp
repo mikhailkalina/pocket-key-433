@@ -1,62 +1,80 @@
-#include <Arduino.h>
-
 #include "button.h"
 
-#define BTN_UP_PIN (4)
-#define BTN_DOWN_PIN (5)
-#define BTN_LEFT_PIN (6)
-#define BTN_RIGHT_PIN (7)
+#include <stdint.h>
 
-#define BTN_DEBOUNCE_TIME_MS (20)
-#define BTN_HOLD_TIME_MS (1000)
+#include <Arduino.h>
+
+using namespace Button;
 
 /**
- * @brief Button structure
+ * @brief Button item structure
  */
-struct Button
+struct ButtonItem
 {
+    const Id id;
     const uint8_t pin;
     const uint8_t activeLevel;
-    ButtonState state;
-    ButtonAction action;
+    State state;
+    Action action;
     bool isActive;
     unsigned long activeTimeMs;
 };
 
-// Button list
-static Button buttonList[BTN_ID_COUNT] = {
-    {.pin = BTN_UP_PIN, .activeLevel = LOW},    // BTN_UP
-    {.pin = BTN_DOWN_PIN, .activeLevel = LOW},  // BTN_DOWN
-    {.pin = BTN_LEFT_PIN, .activeLevel = LOW},  // BTN_LEFT
-    {.pin = BTN_RIGHT_PIN, .activeLevel = LOW}, // BTN_RIGHT
-};
+namespace
+{
+    constexpr unsigned long debounceTimeMs = 20;
+    constexpr unsigned long holdTimeMs = 2000;
+
+    // Button items list
+    ButtonItem buttonList[] = {
+        {
+            .id = Id::Up,
+            .pin = 4,
+            .activeLevel = LOW,
+        },
+        {
+            .id = Id::Down,
+            .pin = 5,
+            .activeLevel = LOW,
+        },
+        {
+            .id = Id::Left,
+            .pin = 6,
+            .activeLevel = LOW,
+        },
+        {
+            .id = Id::Right,
+            .pin = 7,
+            .activeLevel = LOW,
+        },
+    };
+} // namespace
 
 /**
  * @brief Initialize buttons
  */
-void BTN_initialize()
+void Button::initialize()
 {
-    pinMode(BTN_UP_PIN, INPUT_PULLUP);
-    pinMode(BTN_DOWN_PIN, INPUT_PULLUP);
-    pinMode(BTN_LEFT_PIN, INPUT_PULLUP);
-    pinMode(BTN_RIGHT_PIN, INPUT_PULLUP);
+    for (const ButtonItem &button : buttonList)
+    {
+        pinMode(button.pin, INPUT_PULLUP);
+    }
 }
 
 /**
- * @brief Handle buttons changes 
- * 
- * @return button ID if action detected, BTN_ID_NONE otherwise
+ * @brief Process buttons changes
+ *
+ * @return identifier of the button if action detected, None otherwise
  */
-ButtonId BTN_handle()
+Id Button::process()
 {
-    ButtonId actionBtnId = BTN_ID_NONE;
+    Id id = Id::None;
     // Get current system time
     unsigned long currentTimeMs = millis();
 
-    for (size_t btnId = 0; btnId < BTN_ID_COUNT; btnId++)
+    for (ButtonItem &button : buttonList)
     {
-        Button &button = buttonList[btnId]; // current button
-        button.action = BTN_ACTION_NONE;    // No action by default
+        button.action = Action::None; // No action by default
 
         uint8_t buttonPinLevel = digitalRead(button.pin);
         if (buttonPinLevel == button.activeLevel)
@@ -68,65 +86,81 @@ ButtonId BTN_handle()
                 button.isActive = true;
                 button.activeTimeMs = currentTimeMs;
             }
-            else if (button.state == BTN_STATE_RELEASED &&
-                     currentTimeMs > button.activeTimeMs + BTN_DEBOUNCE_TIME_MS)
+            else if (button.state == State::Released &&
+                     currentTimeMs > button.activeTimeMs + debounceTimeMs)
             {
                 // Debounce time passed after press
-                button.state = BTN_STATE_PRESSED;
-                button.action = BTN_ACTION_PRESS;
+                button.action = Action::PressStart;
+                button.state = State::Pressed;
             }
-            else if (button.state == BTN_STATE_PRESSED &&
-                     currentTimeMs > button.activeTimeMs + BTN_HOLD_TIME_MS)
+            else if (button.state == State::Pressed &&
+                     currentTimeMs > button.activeTimeMs + holdTimeMs)
             {
                 // Hold time passed after press
-                button.state = BTN_STATE_HOLD;
-                button.action = BTN_ACTION_LONG_PRESS;
+                button.action = Action::HoldStart;
+                button.state = State::Hold;
             }
         }
         else if (button.isActive == true)
         {
             button.isActive = false;
-            if (button.state != BTN_STATE_RELEASED)
+            if (button.state != State::Released)
             {
                 // Determine action type according to state
-                button.action = (button.state == BTN_STATE_PRESSED) ? BTN_ACTION_CLICK : BTN_ACTION_HOLD_END;
+                button.action = (button.state == State::Pressed) ? Action::PressEnd : Action::HoldEnd;
                 // Button is released
-                button.state = BTN_STATE_RELEASED;
+                button.state = State::Released;
             }
         }
 
-        if (button.action != BTN_ACTION_NONE)
+        if (button.action != Action::None)
         {
-            actionBtnId = btnId;
+            id = button.id;
             break;
         }
     }
 
-    return actionBtnId;
+    return id;
 }
 
 /**
  * @brief Return current state for specified button
- * 
- * @param btnId Button identifier
- * @return Button state
+ *
+ * @param id Button identifier
+ * @return Button current state
  */
-ButtonState BTN_getState(ButtonId btnId)
+State Button::getState(Id id)
 {
-    const Button &button = buttonList[btnId];
+    State state = State::Released;
 
-    return button.state;
+    for (const ButtonItem &button : buttonList)
+    {
+        if (button.id == id)
+        {
+            state = button.state;
+        }
+    }
+
+    return state;
 }
 
 /**
  * @brief Return detected action for specified button
- * 
- * @param btnId Button identifier
- * @return Button action
+ *
+ * @param id Button identifier
+ * @return Button detected action
  */
-ButtonAction BTN_getAction(ButtonId btnId)
+Action Button::getAction(Id id)
 {
-    const Button &button = buttonList[btnId];
+    Action action = Action::None;
 
-    return button.action;
+    for (const ButtonItem &button : buttonList)
+    {
+        if (button.id == id)
+        {
+            action = button.action;
+        }
+    }
+
+    return action;
 }

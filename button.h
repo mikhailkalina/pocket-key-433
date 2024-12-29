@@ -1,64 +1,66 @@
 #pragma once
 
-/**
- * @brief Button identifiers
- */
-enum ButtonId
+namespace Button
 {
-  BTN_ID_UP,
-  BTN_ID_DOWN,
-  BTN_ID_LEFT,
-  BTN_ID_RIGHT,
-  BTN_ID_COUNT, // Should be the last one
-  BTN_ID_NONE = BTN_ID_COUNT,
-};
+  /**
+   * @brief Button identifiers
+   */
+  enum class Id
+  {
+    None,
+    Up,
+    Down,
+    Left,
+    Right,
+  };
 
-/**
- * @brief Button states
- */
-enum ButtonState
-{
-  BTN_STATE_RELEASED,
-  BTN_STATE_PRESSED,
-  BTN_STATE_HOLD,
-};
+  /**
+   * @brief Button states
+   */
+  enum class State
+  {
+    Released,
+    Pressed,
+    Hold,
+  };
 
-/**
- * @brief Button action types
- */
-enum ButtonAction
-{
-  BTN_ACTION_NONE,
-  BTN_ACTION_PRESS,
-  BTN_ACTION_LONG_PRESS,
-  BTN_ACTION_CLICK,
-  BTN_ACTION_HOLD_END,
-};
+  /**
+   * @brief Button action types
+   */
+  enum class Action
+  {
+    None,
+    PressStart,
+    PressEnd,
+    HoldStart,
+    HoldEnd,
+  };
 
-/**
- * @brief Initialize buttons
- */
-void BTN_initialize();
+  /**
+   * @brief Initialize buttons
+   */
+  void initialize();
 
-/**
- * @brief Handle buttons changes 
- * 
- * @return button ID if action detected, BTN_ID_NONE otherwise
- */
-ButtonId BTN_handle();
+  /**
+   * @brief Process buttons changes
+   *
+   * @return identifier of the button if action detected, None otherwise
+   */
+  Id process();
 
-/**
- * @brief Return current state for specified button
- * 
- * @param btnId Button identifier
- * @return Button state
- */
-ButtonState BTN_getState(ButtonId btnId);
+  /**
+   * @brief Return current state for specified button
+   *
+   * @param id Button identifier
+   * @return Button current state
+   */
+  State getState(Id id);
 
-/**
- * @brief Return detected action for specified button
- * 
- * @param btnId Button identifier
- * @return Button action
- */
-ButtonAction BTN_getAction(ButtonId btnId);
+  /**
+   * @brief Return detected action for specified button
+   *
+   * @param id Button identifier
+   * @return Button detected action
+   */
+  Action getAction(Id id);
+} // namespace Button
