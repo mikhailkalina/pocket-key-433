@@ -23,7 +23,7 @@ struct ButtonItem
 namespace
 {
     constexpr unsigned long debounceTimeMs = 20;
-    constexpr unsigned long holdTimeMs = 2000;
+    constexpr unsigned long holdTimeMs = 1000;
 
     // Button items list
     ButtonItem buttonList[] = {

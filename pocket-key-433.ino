@@ -77,10 +77,12 @@ void setup()
   // Initialize buttons
   Button::initialize();
 
-  // Enable interrupt on RX pin
+  // Enable receiver interrupt on RX pin
   rcSwitch.enableReceive(RADIO_RX_INTERRUPT);
+  // Setup transmitter on TX pin
+  rcSwitch.enableTransmit(RADIO_TX_PIN);
 
-  // SLOT_eraseAll(); // uncomment to erase all slots on the storage
+  // Slot::eraseAll(); // uncomment to erase all slots on the storage
   Slot::loadAll();
   setupSlotItemsMenu();
 
