@@ -7,64 +7,97 @@
 #include "menu.h"
 #include "slot.h"
 
-#define RADIO_RX_PIN (2)
-#define RADIO_TX_PIN (10)
-
-#define BATTERY_PIN (A0)
-
-// Receiver on pin #2 => that is interrupt 0
-#define RADIO_RX_INTERRUPT (0)
-
-extern const Menu::Item slotRootMenu;
-extern const Menu::Item settingsMenu;
-extern const Menu::Item displayMenu;
-extern const Menu::Item radioMenu;
-extern const Menu::Item systemMenu;
-extern const Menu::Item brightnessMenu;
-extern const Menu::Item contrastMenu;
-extern const Menu::Item timeoutMenu;
-extern const Menu::Item timeoutMenu;
-extern Menu::Item slotItemsMenu[];
-
-// Root menu
-const Menu::Item slotRootMenu = {nullptr, nullptr, &settingsMenu, (const Menu::Item *)slotItemsMenu, nullptr, 0, "Slots"};
-const Menu::Item settingsMenu = {nullptr, &slotRootMenu, nullptr, &displayMenu, nullptr, 0, "Settings"};
-
-// Slots menu
-Menu::Item slotItemsMenu[Slot::itemsCount] = {0};
-
-// Settings menu
-const Menu::Item displayMenu = {&settingsMenu, nullptr, &radioMenu, &brightnessMenu, nullptr, 0, "Display"};
-const Menu::Item radioMenu = {&settingsMenu, &displayMenu, &systemMenu, nullptr, nullptr, 0, "Radio"};
-const Menu::Item systemMenu = {&settingsMenu, &radioMenu, nullptr, nullptr, nullptr, 0, "System"};
-
-// Display menu
-const Menu::Item brightnessMenu = {&displayMenu, nullptr, &contrastMenu, nullptr, nullptr, 0, "Brightness"};
-const Menu::Item contrastMenu = {&displayMenu, &brightnessMenu, &timeoutMenu, nullptr, nullptr, 0, "Contrast"};
-const Menu::Item timeoutMenu = {&displayMenu, &contrastMenu, nullptr, nullptr, nullptr, 0, "Timeout"};
-
-unsigned long rxTimeMs = 0;
-
-RCSwitch rcSwitch = RCSwitch();
-
-void initializePins()
+namespace
 {
-  pinMode(RADIO_RX_PIN, INPUT);
-  pinMode(RADIO_TX_PIN, OUTPUT);
+  constexpr uint8_t radioRxPin = 2;
+  constexpr uint8_t radioTxPin = 10;
+  // Receiver on pin #2 => that is interrupt 0
+  constexpr uint8_t radioRxInterrupt = 0;
 
-  pinMode(BATTERY_PIN, INPUT);
+  extern Menu::Item slotRootMenu;
+  extern Menu::Item settingsMenu;
+  extern Menu::Item slotListMenu[];
+  extern Menu::Item slotNameMenu;
+  extern Menu::Item slotSearchMenu;
+  extern Menu::Item slotSaveMenu;
+  extern Menu::Item slotEmulateMenu;
+  extern Menu::Item slotDeleteMenu;
+  extern Menu::Item displayMenu;
+  extern Menu::Item systemMenu;
+  extern Menu::Item brightnessMenu;
+  extern Menu::Item timeoutMenu;
+  extern Menu::Item fwVersionMenu;
+
+  // Root menu
+  Menu::Item slotRootMenu = {"Slots", nullptr, &settingsMenu, slotListMenu, nullptr, 0};
+  Menu::Item settingsMenu = {"Settings", &slotRootMenu, nullptr, &displayMenu, nullptr, 0};
+
+  // Slots list menu
+  Menu::Item slotListMenu[Slot::itemsCount] = {0};
+
+  // Slot item menu
+  Menu::Item slotNameMenu = {"Name", nullptr, &slotSearchMenu, nullptr, nullptr, 0};
+  Menu::Item slotSearchMenu = {"Search", &slotNameMenu, &slotSaveMenu, nullptr, nullptr, 0};
+  Menu::Item slotSaveMenu = {"Save", &slotSearchMenu, nullptr, nullptr, nullptr, 0};
+  Menu::Item slotEmulateMenu = {"Emulate", &slotNameMenu, &slotDeleteMenu, nullptr, nullptr, 0};
+  Menu::Item slotDeleteMenu = {"Delete", &slotEmulateMenu, nullptr, nullptr, nullptr, 0};
+
+  // Settings menu
+  Menu::Item displayMenu = {"Display", nullptr, &systemMenu, &brightnessMenu, 0};
+  Menu::Item systemMenu = {"System", &displayMenu, nullptr, &fwVersionMenu, 0};
+
+  // Display menu
+  Menu::Item brightnessMenu = {"Brightness", nullptr, &timeoutMenu, nullptr, nullptr, 0};
+  Menu::Item timeoutMenu = {"Timeout", &brightnessMenu, nullptr, nullptr, nullptr, 0};
+
+  // System menu
+  Menu::Item fwVersionMenu = {"FW version", nullptr, nullptr, nullptr, nullptr, 0};
+
+  unsigned long rxTimeMs = 0;
+  uint8_t selectedSlotIdx = Slot::itemsCount;
+
+  RCSwitch rcSwitch = RCSwitch();
+} // namespace
+
+void initializeRadio()
+{
+  pinMode(radioRxPin, INPUT);
+  pinMode(radioTxPin, OUTPUT);
+
+  // Enable receiver interrupt on RX pin
+  rcSwitch.enableReceive(radioRxInterrupt);
+  // Setup transmitter on TX pin
+  rcSwitch.enableTransmit(radioTxPin);
+}
+
+void slotEnterCallback(uint8_t slotIdx)
+{
+  const Slot::Signal &slotSignal = Slot::getSignal(slotIdx);
+  if (slotSignal == Slot::signalInvalid)
+  {
+    // Signal is invalid - activate search menu
+    slotNameMenu.next = &slotSearchMenu;
+  }
+  else
+  {
+    // Signal is valid - activate emulate menu
+    slotNameMenu.next = &slotEmulateMenu;
+  }
+
+  selectedSlotIdx = slotIdx;
 }
 
 void setupSlotItemsMenu()
 {
-  for (uint8_t idx = 0; idx < Slot::itemsCount; idx++)
+  for (uint8_t slotIdx = 0; slotIdx < Slot::itemsCount; slotIdx++)
   {
-    Menu::Item &itemMenu = slotItemsMenu[idx];
-    itemMenu.parent = &slotRootMenu;
-    itemMenu.prev = idx > 0 ? &slotItemsMenu[idx - 1] : nullptr;
-    itemMenu.next = idx < Slot::itemsCount - 1 ? &slotItemsMenu[idx + 1] : nullptr;
-    itemMenu.child = nullptr;
-    itemMenu.text = Slot::getName(idx);
+    Menu::Item &itemMenu = slotListMenu[slotIdx];
+    itemMenu.text = Slot::getName(slotIdx);
+    itemMenu.prev = slotIdx > 0 ? &slotListMenu[slotIdx - 1] : nullptr;
+    itemMenu.next = slotIdx < Slot::itemsCount - 1 ? &slotListMenu[slotIdx + 1] : nullptr;
+    itemMenu.child = &slotNameMenu;
+    itemMenu.enterHandler.callback = slotEnterCallback;
+    itemMenu.enterHandler.param = slotIdx;
   }
 }
 
@@ -72,22 +105,17 @@ void setup()
 {
   Serial.begin(115200);
 
-  initializePins();
+  initializeRadio();
 
   // Initialize buttons
   Button::initialize();
 
-  // Enable receiver interrupt on RX pin
-  rcSwitch.enableReceive(RADIO_RX_INTERRUPT);
-  // Setup transmitter on TX pin
-  rcSwitch.enableTransmit(RADIO_TX_PIN);
+  // Initialize display
+  Display::initialize();
 
   // Slot::eraseAll(); // uncomment to erase all slots on the storage
   Slot::loadAll();
   setupSlotItemsMenu();
-
-  // Initialize display
-  Display::initialize();
 
   // Draw the slot menu initially
   Menu::draw(&slotRootMenu);

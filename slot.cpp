@@ -11,17 +11,19 @@ using namespace Slot;
 
 namespace
 {
-    constexpr uint8_t nameLengthMax = 10;
+    // 11 chars + 1 end of line
+    constexpr uint8_t nameLengthMax = 12;
 
+#pragma pack(push, 1)
     /**
      * @brief Slot item structure
      */
     struct SlotItem
     {
-        char name[nameLengthMax + 1]; // 10 chars + 1 end of line
-        bool isFilled;
+        char name[nameLengthMax];
         Signal signal;
     };
+#pragma pack(pop)
 
     // Slot item size + CRC size
     constexpr uint8_t slotEepromSize = sizeof(SlotItem) + sizeof(uint8_t);
@@ -53,13 +55,9 @@ void Slot::setSignal(uint8_t slotIdx, const Signal &signal)
 {
     SlotItem &slot = slotList[slotIdx]; // slot to set signal
 
-    if (slot.isFilled == false)
-    {
-        Log::printf("Fill %s: %u %lu/%u", slot.name, signal.protocol, signal.value, signal.bitLength);
+    Log::printf("Fill %s: %u %lu/%u", slot.name, signal.protocol, signal.value, signal.bitLength);
 
-        slot.signal = signal;
-        slot.isFilled = true;
-    }
+    slot.signal = signal;
 }
 
 /**
@@ -85,6 +83,8 @@ void Slot::setName(uint8_t slotIdx, const char *name)
 {
     SlotItem &slot = slotList[slotIdx]; // slot to set name
 
+    Log::printf("New name %s: %s", slot.name, name);
+
     // Set name to default
     snprintf(slot.name, sizeof(slot.name), "%s", name);
 }
@@ -103,8 +103,6 @@ void Slot::reset(uint8_t slotIdx)
 
     Log::printf("Reset %s", slot.name);
 
-    // Empty the slot
-    slot.isFilled = false;
     // Invalidate the signal
     slot.signal = signalInvalid;
 }
@@ -130,11 +128,11 @@ void Slot::save(uint8_t slotIdx)
 /**
  * @brief Load all slots from the storage
  *
- * @return Number of filled slots
+ * @return Number of valid slots
  */
 uint8_t Slot::loadAll()
 {
-    uint8_t filledCount = 0;
+    uint8_t validCount = 0;
 
     for (uint8_t slotIdx = 0; slotIdx < itemsCount; slotIdx++)
     {
@@ -149,15 +147,15 @@ uint8_t Slot::loadAll()
         uint8_t calcCrc8 = calcCRC8((const uint8_t *)&slot, sizeof(slot));
         if (calcCrc8 == crc8)
         {
-            // Slot is valid on EEPROM
-            if (slot.isFilled == true)
+            // Check if slot is valid on EEPROM
+            if (slot.signal == signalInvalid)
             {
-                Log::printf("Load %s: %u %lu/%u", slot.name, slot.signal.protocol, slot.signal.value, slot.signal.bitLength);
-                filledCount++;
+                Log::printf("%s is empty", slot.name);
             }
             else
             {
-                Log::printf("%s is empty", slot.name);
+                Log::printf("Load %s: %u %lu/%u", slot.name, slot.signal.protocol, slot.signal.value, slot.signal.bitLength);
+                validCount++;
             }
         }
         else
@@ -169,7 +167,7 @@ uint8_t Slot::loadAll()
         }
     }
 
-    return filledCount;
+    return validCount;
 }
 
 /**

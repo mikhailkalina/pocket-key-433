@@ -29,31 +29,54 @@ const Item *Menu::navigate(Action action)
 {
     if (pCurrentItem != nullptr)
     {
-        const Item *pNewItem = pCurrentItem;
+        Item *pNewItem = pCurrentItem;
 
         switch (action)
         {
-        case Action::Exit:
-            pNewItem = pCurrentItem->parent;
-            break;
-
         case Action::Prev:
             pNewItem = pCurrentItem->prev;
+            if (pNewItem != nullptr)
+            {
+                // Save parent to exit properly
+                pNewItem->parent = pCurrentItem->parent;
+            }
             break;
 
         case Action::Next:
             pNewItem = pCurrentItem->next;
+            if (pNewItem != nullptr)
+            {
+                // Save parent to exit properly
+                pNewItem->parent = pCurrentItem->parent;
+            }
             break;
 
         case Action::Enter:
             pNewItem = pCurrentItem->child;
+            if (pNewItem != nullptr)
+            {
+                // Save parent to exit properly
+                pNewItem->parent = pCurrentItem;
+            }
+            if (pCurrentItem->enterHandler.callback != nullptr)
+            {
+                pCurrentItem->enterHandler.callback(pCurrentItem->enterHandler.param);
+            }
+            break;
+
+        case Action::Exit:
+            pNewItem = pCurrentItem->parent;
+            if (pCurrentItem->exitHandler.callback != nullptr)
+            {
+                pCurrentItem->exitHandler.callback(pCurrentItem->exitHandler.param);
+            }
             break;
 
         default:
             break;
         }
 
-        if (pNewItem != pCurrentItem)
+        if (pNewItem != nullptr && pNewItem != pCurrentItem)
         {
             draw(pNewItem);
         }

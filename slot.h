@@ -5,17 +5,26 @@
 namespace Slot
 {
     // Number of slot items
-    static constexpr uint8_t itemsCount = 20;
+    static constexpr uint8_t itemsCount = 10;
 
+#pragma pack(push, 1)
     /**
      * @brief Radio signal structure
      */
     struct Signal
     {
-        unsigned int protocol;
-        unsigned long value;
-        unsigned int bitLength;
+        uint8_t protocol;
+        uint8_t bitLength;
+        uint32_t value;
+
+        bool operator==(const Signal &other) const
+        {
+            return ((protocol == other.protocol) &&
+                    (bitLength == other.bitLength) &&
+                    (value == other.value));
+        }
     };
+#pragma pack(pop)
 
     static constexpr Signal signalInvalid = {0};
 
@@ -68,7 +77,7 @@ namespace Slot
     /**
      * @brief Load all slots from the storage
      *
-     * @return Number of filled slots
+     * @return Number of valid slots
      */
     uint8_t loadAll();
 

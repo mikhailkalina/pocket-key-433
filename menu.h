@@ -1,22 +1,33 @@
 #pragma once
 
+#include <stdint.h>
+
 namespace Menu
 {
     // Menu entered function prototype
-    typedef void (*Callback)(int param);
+    typedef void (*Callback)(uint8_t param);
+
+    /**
+     * @brief Menu item action handler structure
+     */
+    struct ActionHandler
+    {
+        Callback callback;
+        uint8_t param;
+    };
 
     /**
      * @brief Menu item structure
      */
     struct Item
     {
-        const Item *parent;
+        const char *text;
         const Item *prev;
         const Item *next;
         const Item *child;
-        Callback callback;
-        int param;
-        const char *text;
+        const Item *parent;
+        ActionHandler enterHandler;
+        ActionHandler exitHandler;
     };
 
     /**
@@ -25,10 +36,10 @@ namespace Menu
     enum class Action
     {
         None,
-        Exit,
         Prev,
         Next,
         Enter,
+        Exit,
     };
 
     /**
