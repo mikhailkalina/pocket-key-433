@@ -15,15 +15,16 @@ struct ButtonItem
     const uint8_t pin;
     const uint8_t activeLevel;
     State state;
-    Action action;
+    Event event;
     bool isActive;
-    unsigned long activeTimeMs;
+    unsigned long eventTimeMs;
 };
 
 namespace
 {
     constexpr unsigned long debounceTimeMs = 20;
-    constexpr unsigned long holdTimeMs = 1000;
+    constexpr unsigned long holdStartTimeMs = 1000;
+    constexpr unsigned long holdContinueTimeMs = 200;
 
     // Button items list
     ButtonItem buttonList[] = {
@@ -74,7 +75,7 @@ Id Button::process()
 
     for (ButtonItem &button : buttonList)
     {
-        button.action = Action::None; // No action by default
+        button.event = Event::None; // No action by default
 
         uint8_t buttonPinLevel = digitalRead(button.pin);
         if (buttonPinLevel == button.activeLevel)
@@ -84,21 +85,30 @@ Id Button::process()
             {
                 // First time detect active level
                 button.isActive = true;
-                button.activeTimeMs = currentTimeMs;
+                button.eventTimeMs = currentTimeMs;
             }
             else if (button.state == State::Released &&
-                     currentTimeMs > button.activeTimeMs + debounceTimeMs)
+                     currentTimeMs > button.eventTimeMs + debounceTimeMs)
             {
                 // Debounce time passed after press
-                button.action = Action::PressStart;
+                button.event = Event::PressStart;
                 button.state = State::Pressed;
+                button.eventTimeMs = currentTimeMs;
             }
             else if (button.state == State::Pressed &&
-                     currentTimeMs > button.activeTimeMs + holdTimeMs)
+                     currentTimeMs > button.eventTimeMs + holdStartTimeMs)
             {
-                // Hold time passed after press
-                button.action = Action::HoldStart;
+                // Hold start time passed after press
+                button.event = Event::HoldStart;
                 button.state = State::Hold;
+                button.eventTimeMs = currentTimeMs;
+            }
+            else if (button.state == State::Hold &&
+                     currentTimeMs > button.eventTimeMs + holdContinueTimeMs)
+            {
+                // Hold continue time passed after last hold event
+                button.event = Event::HoldContinue;
+                button.eventTimeMs = currentTimeMs;
             }
         }
         else if (button.isActive == true)
@@ -107,13 +117,13 @@ Id Button::process()
             if (button.state != State::Released)
             {
                 // Determine action type according to state
-                button.action = (button.state == State::Pressed) ? Action::PressEnd : Action::HoldEnd;
+                button.event = (button.state == State::Pressed) ? Event::PressEnd : Event::HoldEnd;
                 // Button is released
                 button.state = State::Released;
             }
         }
 
-        if (button.action != Action::None)
+        if (button.event != Event::None)
         {
             id = button.id;
             break;
@@ -145,22 +155,22 @@ State Button::getState(Id id)
 }
 
 /**
- * @brief Return detected action for specified button
+ * @brief Return detected event for specified button
  *
  * @param id Button identifier
- * @return Button detected action
+ * @return Button detected event
  */
-Action Button::getAction(Id id)
+Event Button::getEvent(Id id)
 {
-    Action action = Action::None;
+    Event event = Event::None;
 
     for (const ButtonItem &button : buttonList)
     {
         if (button.id == id)
         {
-            action = button.action;
+            event = button.event;
         }
     }
 
-    return action;
+    return event;
 }

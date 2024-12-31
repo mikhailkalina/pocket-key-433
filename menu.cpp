@@ -17,6 +17,7 @@ namespace
     const char rootHeader[] = "Pocket Key";
 
     const Item *pCurrentItem = nullptr;
+    bool isMenuSpecific = false;
 } // namespace
 
 /**
@@ -29,7 +30,7 @@ const Item *Menu::navigate(Action action)
 {
     if (pCurrentItem != nullptr)
     {
-        Item *pNewItem = pCurrentItem;
+        Item *pNewItem = nullptr;
 
         switch (action)
         {
@@ -58,17 +59,24 @@ const Item *Menu::navigate(Action action)
                 // Save parent to exit properly
                 pNewItem->parent = pCurrentItem;
             }
-            if (pCurrentItem->enterHandler.callback != nullptr)
+            else if (isMenuSpecific == false)
             {
-                pCurrentItem->enterHandler.callback(pCurrentItem->enterHandler.param);
+                // Start menu specific function
+                isMenuSpecific = true;
+                Display::clear();
             }
             break;
 
-        case Action::Exit:
+        case Action::Back:
             pNewItem = pCurrentItem->parent;
-            if (pCurrentItem->exitHandler.callback != nullptr)
+            break;
+
+        case Action::Exit:
+            if (isMenuSpecific == true)
             {
-                pCurrentItem->exitHandler.callback(pCurrentItem->exitHandler.param);
+                // End menu specific function
+                isMenuSpecific = false;
+                pNewItem = pCurrentItem;
             }
             break;
 
@@ -76,8 +84,14 @@ const Item *Menu::navigate(Action action)
             break;
         }
 
-        if (pNewItem != nullptr && pNewItem != pCurrentItem)
+        if (pCurrentItem->callback != nullptr)
         {
+            pCurrentItem->callback(action, pCurrentItem->param);
+        }
+
+        if (isMenuSpecific == false && pNewItem != nullptr)
+        {
+            // Draw new menu item
             draw(pNewItem);
         }
     }
@@ -124,7 +138,7 @@ void Menu::draw(const Item *pItem)
         // Show navigation info
         uint8_t itemIdx = prevItemCount;
         uint8_t itemsCount = prevItemCount + 1 + nextItemCount;
-        Display::printf(0, navInfoYPosPix, "%2u/%-2u", itemIdx + 1, itemsCount);
+        Display::printf(0, navInfoYPosPix, "<BACK   %2u/%-2u  ENTER>", itemIdx + 1, itemsCount);
 
         // Find the first item on current page
         uint8_t itemOffset = itemIdx % pageItemCount;

@@ -19,7 +19,6 @@ namespace
   extern Menu::Item slotListMenu[];
   extern Menu::Item slotNameMenu;
   extern Menu::Item slotSearchMenu;
-  extern Menu::Item slotSaveMenu;
   extern Menu::Item slotEmulateMenu;
   extern Menu::Item slotDeleteMenu;
   extern Menu::Item displayMenu;
@@ -29,76 +28,185 @@ namespace
   extern Menu::Item fwVersionMenu;
 
   // Root menu
-  Menu::Item slotRootMenu = {"Slots", nullptr, &settingsMenu, slotListMenu, nullptr, 0};
-  Menu::Item settingsMenu = {"Settings", &slotRootMenu, nullptr, &displayMenu, nullptr, 0};
+  Menu::Item slotRootMenu = {"Slots", nullptr, &settingsMenu, slotListMenu};
+  Menu::Item settingsMenu = {"Settings", &slotRootMenu, nullptr, &displayMenu};
 
   // Slots list menu
-  Menu::Item slotListMenu[Slot::itemsCount] = {0};
+  Menu::Item slotListMenu[Slot::slotsCount] = {0};
 
   // Slot item menu
-  Menu::Item slotNameMenu = {"Name", nullptr, &slotSearchMenu, nullptr, nullptr, 0};
-  Menu::Item slotSearchMenu = {"Search", &slotNameMenu, &slotSaveMenu, nullptr, nullptr, 0};
-  Menu::Item slotSaveMenu = {"Save", &slotSearchMenu, nullptr, nullptr, nullptr, 0};
-  Menu::Item slotEmulateMenu = {"Emulate", &slotNameMenu, &slotDeleteMenu, nullptr, nullptr, 0};
-  Menu::Item slotDeleteMenu = {"Delete", &slotEmulateMenu, nullptr, nullptr, nullptr, 0};
+  Menu::Item slotNameMenu = {"Name", nullptr, &slotSearchMenu, nullptr};
+  Menu::Item slotSearchMenu = {"Search", &slotNameMenu, &slotEmulateMenu, nullptr};
+  Menu::Item slotEmulateMenu = {"Emulate", &slotSearchMenu, nullptr, nullptr};
 
   // Settings menu
-  Menu::Item displayMenu = {"Display", nullptr, &systemMenu, &brightnessMenu, 0};
-  Menu::Item systemMenu = {"System", &displayMenu, nullptr, &fwVersionMenu, 0};
+  Menu::Item displayMenu = {"Display", nullptr, &systemMenu, &brightnessMenu};
+  Menu::Item systemMenu = {"System", &displayMenu, nullptr, &fwVersionMenu};
 
   // Display menu
-  Menu::Item brightnessMenu = {"Brightness", nullptr, &timeoutMenu, nullptr, nullptr, 0};
-  Menu::Item timeoutMenu = {"Timeout", &brightnessMenu, nullptr, nullptr, nullptr, 0};
+  Menu::Item brightnessMenu = {"Brightness", nullptr, &timeoutMenu, nullptr};
+  Menu::Item timeoutMenu = {"Timeout", &brightnessMenu, nullptr, nullptr};
 
   // System menu
-  Menu::Item fwVersionMenu = {"FW version", nullptr, nullptr, nullptr, nullptr, 0};
+  Menu::Item fwVersionMenu = {"FW version", nullptr, nullptr, nullptr};
 
-  unsigned long rxTimeMs = 0;
-  uint8_t selectedSlotIdx = Slot::itemsCount;
+  uint8_t selectedSlotIdx = Slot::invalidIdx;
+  bool isSearchActive = false;
 
   RCSwitch rcSwitch = RCSwitch();
 } // namespace
+
+Menu::Action getMenuAction(Button::Id buttonId)
+{
+  Menu::Action menuAction = Menu::Action::None;
+  Button::Event buttonEvent = Button::getEvent(buttonId);
+
+  switch (buttonId)
+  {
+  case Button::Id::Up:
+    if (buttonEvent == Button::Event::PressStart ||
+        buttonEvent == Button::Event::HoldStart ||
+        buttonEvent == Button::Event::HoldContinue)
+    {
+      menuAction = Menu::Action::Prev;
+    }
+    break;
+
+  case Button::Id::Down:
+    if (buttonEvent == Button::Event::PressStart ||
+        buttonEvent == Button::Event::HoldStart ||
+        buttonEvent == Button::Event::HoldContinue)
+    {
+      menuAction = Menu::Action::Next;
+    }
+    break;
+
+  case Button::Id::Left:
+    if (buttonEvent == Button::Event::PressEnd)
+    {
+      menuAction = Menu::Action::Back;
+    }
+    else if (buttonEvent == Button::Event::HoldStart)
+    {
+      menuAction = Menu::Action::Exit;
+    }
+    break;
+
+  case Button::Id::Right:
+    if (buttonEvent == Button::Event::PressEnd)
+    {
+      menuAction = Menu::Action::Enter;
+    }
+    break;
+
+  default:
+    break;
+  }
+
+  return menuAction;
+}
 
 void initializeRadio()
 {
   pinMode(radioRxPin, INPUT);
   pinMode(radioTxPin, OUTPUT);
 
-  // Enable receiver interrupt on RX pin
-  rcSwitch.enableReceive(radioRxInterrupt);
   // Setup transmitter on TX pin
   rcSwitch.enableTransmit(radioTxPin);
 }
 
-void slotEnterCallback(uint8_t slotIdx)
+void slotItemCallback(Menu::Action action, int param)
 {
-  const Slot::Signal &slotSignal = Slot::getSignal(slotIdx);
-  if (slotSignal == Slot::signalInvalid)
+  if (action == Menu::Action::Enter)
   {
-    // Signal is invalid - activate search menu
-    slotNameMenu.next = &slotSearchMenu;
+    selectedSlotIdx = param;
   }
-  else
-  {
-    // Signal is valid - activate emulate menu
-    slotNameMenu.next = &slotEmulateMenu;
-  }
+}
 
-  selectedSlotIdx = slotIdx;
+void slotSearchCallback(Menu::Action action, int param)
+{
+  if (action == Menu::Action::Enter)
+  {
+    Display::clear();
+    Display::setStyle(Display::Style::Bold);
+    Display::setSize(Display::Size::Bits_16);
+    Display::printf(0, 0, "Searching...    ");
+    Display::printf(0, 16, "Please wait");
+
+    isSearchActive = true;
+    // Enable receiver interrupt on RX pin
+    rcSwitch.enableReceive(radioRxInterrupt);
+  }
+  else if (action == Menu::Action::Exit)
+  {
+    if (isSearchActive == true)
+    {
+      isSearchActive = false;
+      // Enable receiver interrupt
+      rcSwitch.disableReceive();
+    }
+    else
+    {
+      // New signal was found and set - save
+      Slot::save(selectedSlotIdx);
+    }
+
+    Display::clear();
+  }
+}
+
+void slotEmulateCallback(Menu::Action action, int param)
+{
+  if (action == Menu::Action::Enter)
+  {
+    const Slot::Signal &txSignal = Slot::getSignal(selectedSlotIdx);
+    if (txSignal == Slot::signalInvalid)
+    {
+      Display::setStyle(Display::Style::Bold);
+      Display::setSize(Display::Size::Bits_16);
+      Display::printf(0, 0, "No signal saved!");
+      Display::printf(0, 16, "Go to search menu");
+      Display::printf(0, 56, "<EXIT               >");
+    }
+    else
+    {
+      Display::setStyle(Display::Style::Bold);
+      Display::setSize(Display::Size::Bits_16);
+      Display::printf(0, 0, "Sending...");
+      Display::printf(0, 16, " Protocol: %02u", txSignal.protocol);
+      Display::printf(0, 24, " Value: 0x%08X", txSignal.value);
+      Display::printf(0, 32, " Bits: %2u", txSignal.bitLength);
+
+      rcSwitch.setProtocol(txSignal.protocol);
+      rcSwitch.send(txSignal.value, txSignal.bitLength);
+
+      Display::setStyle(Display::Style::Bold);
+      Display::setSize(Display::Size::Bits_16);
+      Display::printf(0, 0, "Sending OK");
+      Display::printf(0, 56, "<EXIT         REPEAT>");
+    }
+  }
+  else if (action == Menu::Action::Exit)
+  {
+    Display::clear();
+  }
 }
 
 void setupSlotItemsMenu()
 {
-  for (uint8_t slotIdx = 0; slotIdx < Slot::itemsCount; slotIdx++)
+  for (uint8_t slotIdx = 0; slotIdx < Slot::slotsCount; slotIdx++)
   {
     Menu::Item &itemMenu = slotListMenu[slotIdx];
     itemMenu.text = Slot::getName(slotIdx);
     itemMenu.prev = slotIdx > 0 ? &slotListMenu[slotIdx - 1] : nullptr;
-    itemMenu.next = slotIdx < Slot::itemsCount - 1 ? &slotListMenu[slotIdx + 1] : nullptr;
+    itemMenu.next = slotIdx < Slot::slotsCount - 1 ? &slotListMenu[slotIdx + 1] : nullptr;
     itemMenu.child = &slotNameMenu;
-    itemMenu.enterHandler.callback = slotEnterCallback;
-    itemMenu.enterHandler.param = slotIdx;
+    itemMenu.callback = slotItemCallback;
+    itemMenu.param = slotIdx;
   }
+
+  slotSearchMenu.callback = slotSearchCallback;
+  slotEmulateMenu.callback = slotEmulateCallback;
 }
 
 void setup()
@@ -126,38 +234,11 @@ void loop()
   Button::Id buttonId = Button::process();
   if (buttonId != Button::Id::None)
   {
-    Log::printf("UP:%d DOWN:%d LEFT:%d RIGHT:%d",
-                (int)Button::getState(Button::Id::Up), (int)Button::getState(Button::Id::Down),
-                (int)Button::getState(Button::Id::Left), (int)Button::getState(Button::Id::Right));
+    Log::printf("UP:%u DOWN:%u LEFT:%u RIGHT:%u",
+                Button::getState(Button::Id::Up), Button::getState(Button::Id::Down),
+                Button::getState(Button::Id::Left), Button::getState(Button::Id::Right));
 
-    Menu::Action menuAction = Menu::Action::None;
-
-    Button::Action buttonAction = Button::getAction(buttonId);
-    if (buttonAction == Button::Action::PressEnd)
-    {
-      switch (buttonId)
-      {
-      case Button::Id::Left:
-        menuAction = Menu::Action::Exit;
-        break;
-
-      case Button::Id::Up:
-        menuAction = Menu::Action::Prev;
-        break;
-
-      case Button::Id::Down:
-        menuAction = Menu::Action::Next;
-        break;
-
-      case Button::Id::Right:
-        menuAction = Menu::Action::Enter;
-        break;
-
-      default:
-        break;
-      }
-    }
-
+    Menu::Action menuAction = getMenuAction(buttonId);
     if (menuAction != Menu::Action::None)
     {
       Menu::navigate(menuAction);
@@ -166,20 +247,31 @@ void loop()
 
   if (rcSwitch.available())
   {
-    unsigned int rxProto = rcSwitch.getReceivedProtocol();
-    unsigned long rxValue = rcSwitch.getReceivedValue();
-    unsigned int rxBits = rcSwitch.getReceivedBitlength();
+    Slot::Signal rxSignal;
+    rxSignal.protocol = rcSwitch.getReceivedProtocol();
+    rxSignal.value = rcSwitch.getReceivedValue();
+    rxSignal.bitLength = rcSwitch.getReceivedBitlength();
 
-    Log::printf("Rx %02u: %lu/%u", rxProto, rxValue, rxBits);
+    Log::printf("Rx %02u: %u/%u", rxSignal.protocol, rxSignal.value, rxSignal.bitLength);
 
-    Display::printf(96, 56, "RX<<");
-    rxTimeMs = millis();
+    if (isSearchActive == true)
+    {
+      isSearchActive = false;
+      // Enable receiver interrupt
+      rcSwitch.disableReceive();
+
+      Slot::setSignal(selectedSlotIdx, rxSignal);
+
+      Display::clear();
+      Display::setStyle(Display::Style::Bold);
+      Display::setSize(Display::Size::Bits_16);
+      Display::printf(0, 0, "Found:");
+      Display::printf(0, 16, " Protocol: %02u", rxSignal.protocol);
+      Display::printf(0, 24, " Value: 0x%08X", rxSignal.value);
+      Display::printf(0, 32, " Bits: %2u", rxSignal.bitLength);
+      Display::printf(0, 56, "<EXIT&SAVE    REPEAT>");
+    }
 
     rcSwitch.resetAvailable();
-  }
-  else if (rxTimeMs > 0 && rxTimeMs + 100 < millis())
-  {
-    Display::printf(96, 56, "    "); // clear rx sign
-    rxTimeMs = 0;
   }
 }

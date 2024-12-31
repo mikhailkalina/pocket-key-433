@@ -145,3 +145,11 @@ void Display::printf(uint8_t xPos, uint8_t yPos, const char *format, ...)
         setSize(sizePermanent);
     }
 }
+
+/**
+ * @brief Clear the screen
+ */
+void Display::clear()
+{
+    ssd1306_clearScreen();
+}

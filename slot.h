@@ -5,7 +5,8 @@
 namespace Slot
 {
     // Number of slot items
-    static constexpr uint8_t itemsCount = 10;
+    static constexpr uint8_t slotsCount = 10;
+    static constexpr uint8_t invalidIdx = slotsCount;
 
 #pragma pack(push, 1)
     /**
@@ -26,7 +27,7 @@ namespace Slot
     };
 #pragma pack(pop)
 
-    static constexpr Signal signalInvalid = {0};
+    static constexpr Signal signalInvalid = {0, 0, 0};
 
     /**
      * @brief Return signal for specified slot

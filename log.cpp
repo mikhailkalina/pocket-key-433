@@ -7,7 +7,7 @@ using namespace Log;
 namespace
 {
   // Local buffer for log output
-  char buffer[50];
+  char buffer[60];
 } // namespace
 
 /**

@@ -54,4 +54,9 @@ namespace Display
    * @param ... Parameters for formatted string
    */
   void printf(uint8_t xPos, uint8_t yPos, const char *format, ...);
+
+  /**
+   * @brief Clear the screen
+   */
+  void clear();
 } // namespace Display

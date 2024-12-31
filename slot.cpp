@@ -29,7 +29,7 @@ namespace
     constexpr uint8_t slotEepromSize = sizeof(SlotItem) + sizeof(uint8_t);
 
     // Storage slot list
-    SlotItem slotList[itemsCount] = {0};
+    SlotItem slotList[slotsCount] = {0};
 } // namespace
 
 /**
@@ -40,9 +40,18 @@ namespace
  */
 const Signal &Slot::getSignal(uint8_t slotIdx)
 {
-    const SlotItem &slot = slotList[slotIdx]; // slot to get signal
+    if (slotIdx < slotsCount)
+    {
+        const Signal &signal = slotList[slotIdx].signal;
 
-    return slot.signal;
+        Log::printf("Get slot[%u] signal: %u %lu/%u", slotIdx, signal.protocol, signal.value, signal.bitLength);
+
+        return signal;
+    }
+
+    Log::printf("Get slot[%u] signal: invalid", slotIdx);
+
+    return signalInvalid;
 }
 
 /**
@@ -53,11 +62,14 @@ const Signal &Slot::getSignal(uint8_t slotIdx)
  */
 void Slot::setSignal(uint8_t slotIdx, const Signal &signal)
 {
-    SlotItem &slot = slotList[slotIdx]; // slot to set signal
+    if (slotIdx < slotsCount)
+    {
+        SlotItem &slot = slotList[slotIdx]; // slot to set signal
 
-    Log::printf("Fill %s: %u %lu/%u", slot.name, signal.protocol, signal.value, signal.bitLength);
+        Log::printf("Set slot[%u] signal: %u %lu/%u", slotIdx, signal.protocol, signal.value, signal.bitLength);
 
-    slot.signal = signal;
+        slot.signal = signal;
+    }
 }
 
 /**
@@ -68,9 +80,16 @@ void Slot::setSignal(uint8_t slotIdx, const Signal &signal)
  */
 const char *Slot::getName(uint8_t slotIdx)
 {
-    const SlotItem &slot = slotList[slotIdx]; // slot to get name
+    const char *name = nullptr;
 
-    return slot.name;
+    if (slotIdx < slotsCount)
+    {
+        name = slotList[slotIdx].name;
+
+        Log::printf("Get slot[%u] name: %s", slotIdx, name);
+    }
+
+    return name;
 }
 
 /**
@@ -81,12 +100,15 @@ const char *Slot::getName(uint8_t slotIdx)
  */
 void Slot::setName(uint8_t slotIdx, const char *name)
 {
-    SlotItem &slot = slotList[slotIdx]; // slot to set name
+    if (slotIdx < slotsCount)
+    {
+        SlotItem &slot = slotList[slotIdx]; // slot to set name
 
-    Log::printf("New name %s: %s", slot.name, name);
+        Log::printf("Set slot[%u] name: %s", slotIdx, name);
 
-    // Set name to default
-    snprintf(slot.name, sizeof(slot.name), "%s", name);
+        // Set name to default
+        snprintf(slot.name, sizeof(slot.name), "%s", name);
+    }
 }
 
 /**
@@ -96,15 +118,18 @@ void Slot::setName(uint8_t slotIdx, const char *name)
  */
 void Slot::reset(uint8_t slotIdx)
 {
-    SlotItem &slot = slotList[slotIdx]; // slot to reset
+    if (slotIdx < slotsCount)
+    {
+        SlotItem &slot = slotList[slotIdx]; // slot to reset
 
-    // Reset name to default
-    snprintf(slot.name, sizeof(slot.name), "Slot %02d", slotIdx + 1);
+        Log::printf("Reset slot[%u]", slotIdx);
 
-    Log::printf("Reset %s", slot.name);
+        // Reset name to default
+        snprintf(slot.name, sizeof(slot.name), "Slot %02d", slotIdx + 1);
 
-    // Invalidate the signal
-    slot.signal = signalInvalid;
+        // Invalidate the signal
+        slot.signal = signalInvalid;
+    }
 }
 
 /**
@@ -114,15 +139,18 @@ void Slot::reset(uint8_t slotIdx)
  */
 void Slot::save(uint8_t slotIdx)
 {
-    const SlotItem &slot = slotList[slotIdx]; // slot to save
-    uint8_t crc8 = calcCRC8((const uint8_t *)&slot, sizeof(slot));
-    int slotAddress = slotIdx * slotEepromSize;
-    int crc8Address = slotAddress + sizeof(SlotItem);
+    if (slotIdx < slotsCount)
+    {
+        const SlotItem &slot = slotList[slotIdx]; // slot to save
+        uint8_t crc8 = calcCRC8((const uint8_t *)&slot, sizeof(slot));
+        int slotAddress = slotIdx * slotEepromSize;
+        int crc8Address = slotAddress + sizeof(SlotItem);
 
-    Log::printf("Save %s", slot.name);
+        Log::printf("Save slot[%u]", slotIdx);
 
-    EEPROM.put(slotAddress, slot);
-    EEPROM.put(crc8Address, crc8);
+        EEPROM.put(slotAddress, slot);
+        EEPROM.put(crc8Address, crc8);
+    }
 }
 
 /**
@@ -134,7 +162,7 @@ uint8_t Slot::loadAll()
 {
     uint8_t validCount = 0;
 
-    for (uint8_t slotIdx = 0; slotIdx < itemsCount; slotIdx++)
+    for (uint8_t slotIdx = 0; slotIdx < slotsCount; slotIdx++)
     {
         SlotItem &slot = slotList[slotIdx]; // slot to load
         uint8_t crc8 = 0;
@@ -150,11 +178,12 @@ uint8_t Slot::loadAll()
             // Check if slot is valid on EEPROM
             if (slot.signal == signalInvalid)
             {
-                Log::printf("%s is empty", slot.name);
+                Log::printf("Load slot[%u]: \"%s\" invalid", slotIdx, slot.name);
             }
             else
             {
-                Log::printf("Load %s: %u %lu/%u", slot.name, slot.signal.protocol, slot.signal.value, slot.signal.bitLength);
+                Log::printf("Load slot[%u]: \"%s\" %u %lu/%u", slotIdx, slot.name,
+                            slot.signal.protocol, slot.signal.value, slot.signal.bitLength);
                 validCount++;
             }
         }
@@ -175,7 +204,7 @@ uint8_t Slot::loadAll()
  */
 void Slot::eraseAll()
 {
-    const int itemsSize = itemsCount * (sizeof(SlotItem) + sizeof(uint8_t)); // Slot item size + CRC size
+    const int itemsSize = slotsCount * (sizeof(SlotItem) + sizeof(uint8_t)); // Slot item size + CRC size
     for (int idx = 0; idx < itemsSize; idx++)
     {
         // Erase storage with 0xFF

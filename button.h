@@ -25,14 +25,15 @@ namespace Button
   };
 
   /**
-   * @brief Button action types
+   * @brief Button events
    */
-  enum class Action
+  enum class Event
   {
     None,
     PressStart,
     PressEnd,
     HoldStart,
+    HoldContinue,
     HoldEnd,
   };
 
@@ -57,10 +58,10 @@ namespace Button
   State getState(Id id);
 
   /**
-   * @brief Return detected action for specified button
+   * @brief Return detected event for specified button
    *
    * @param id Button identifier
-   * @return Button detected action
+   * @return Button detected event
    */
-  Action getAction(Id id);
+  Event getEvent(Id id);
 } // namespace Button
