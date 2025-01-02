@@ -9,23 +9,35 @@
 
 namespace
 {
-  constexpr uint8_t radioRxPin = 2;
-  constexpr uint8_t radioTxPin = 10;
-  // Receiver on pin #2 => that is interrupt 0
-  constexpr uint8_t radioRxInterrupt = 0;
+  namespace FwVersion
+  {
+    constexpr uint8_t major = 0;
+    constexpr uint8_t minor = 1;
+  } // namespace FwVersion
 
-  constexpr uint8_t menuPageItemCount = 5;
-  constexpr Display::Line displayLines[] = {
-      Display::Line::Line_1,
-      Display::Line::Line_2,
-      Display::Line::Line_3,
-      Display::Line::Line_4,
-      Display::Line::Line_5,
-  };
-  static_assert(sizeof(displayLines) / sizeof(*displayLines) == menuPageItemCount);
+  namespace MainRadio
+  {
+    constexpr uint8_t rxPin = 2;
+    constexpr uint8_t txPin = 10;
+    // Receiver on pin #2 => that is interrupt 0
+    constexpr uint8_t rxInterrupt = 0;
+  } // namespace MainRadio
 
-  // String for root menu header
-  const char menuRootHeader[] = "Pocket Key";
+  namespace MainMenu
+  {
+    constexpr uint8_t pageItemCount = 5;
+    constexpr Display::Line displayLines[] = {
+        Display::Line::Line_1,
+        Display::Line::Line_2,
+        Display::Line::Line_3,
+        Display::Line::Line_4,
+        Display::Line::Line_5,
+    };
+    static_assert(sizeof(displayLines) / sizeof(*displayLines) == pageItemCount);
+
+    // String for root menu header
+    const char rootHeader[] = "Pocket Key";
+  } // namespace Menu
 
   // Menu item definitions
   extern Menu::Item slotRootMenu;
@@ -39,11 +51,11 @@ namespace
   extern Menu::Item systemMenu;
   extern Menu::Item brightnessMenu;
   extern Menu::Item timeoutMenu;
-  extern Menu::Item fwVersionMenu;
 
   // Menu item's functionality callback prototypes
   Menu::FunctionState slotEmulateCallback(Menu::Action action, int param);
   Menu::FunctionState slotSearchCallback(Menu::Action action, int param);
+  Menu::FunctionState systemCallback(Menu::Action action, int param);
 
   // Root menu
   Menu::Item slotRootMenu = {"Slots", nullptr, &settingsMenu, slotListMenu};
@@ -59,14 +71,11 @@ namespace
 
   // Settings menu
   Menu::Item displayMenu = {"Display", nullptr, &systemMenu, &brightnessMenu};
-  Menu::Item systemMenu = {"System", &displayMenu, nullptr, &fwVersionMenu};
+  Menu::Item systemMenu = {"System", &displayMenu, nullptr, nullptr, systemCallback};
 
   // Display menu
   Menu::Item brightnessMenu = {"Brightness", nullptr, &timeoutMenu, nullptr};
   Menu::Item timeoutMenu = {"Timeout", &brightnessMenu, nullptr, nullptr};
-
-  // System menu
-  Menu::Item fwVersionMenu = {"FW version", nullptr, nullptr, nullptr};
 
   const Menu::Item *pCurrentMenu = &slotRootMenu;
   uint8_t selectedSlotIdx = Slot::invalidIdx;
@@ -138,7 +147,7 @@ namespace
     if (pDrawItem != nullptr)
     {
       // Show parent header text
-      const char *headerText = pDrawItem->parent != nullptr ? pDrawItem->parent->text : menuRootHeader;
+      const char *headerText = pDrawItem->parent != nullptr ? pDrawItem->parent->text : MainMenu::rootHeader;
       Display::printf(0, Display::Line::Header, "%-16.16s", headerText);
 
       // Count previous items
@@ -165,7 +174,7 @@ namespace
       Display::printf(0, Display::Line::Navigation, "<BACK   %2u/%-2u  ENTER>", itemIdx + 1, itemsCount);
 
       // Find the first item on current page
-      uint8_t itemOffset = itemIdx % menuPageItemCount;
+      uint8_t itemOffset = itemIdx % MainMenu::pageItemCount;
       pItem = pDrawItem;
       while (itemOffset > 0)
       {
@@ -174,9 +183,9 @@ namespace
       }
 
       // Fill menu items on current page
-      while (itemOffset < menuPageItemCount)
+      while (itemOffset < MainMenu::pageItemCount)
       {
-        Display::Line line = displayLines[itemOffset];
+        Display::Line line = MainMenu::displayLines[itemOffset];
 
         if (pItem == pDrawItem)
         {
@@ -321,7 +330,7 @@ namespace
         // Reset previous found signal if any
         rcSwitch.resetAvailable();
         // Enable receiver interrupt on RX pin
-        rcSwitch.enableReceive(radioRxInterrupt);
+        rcSwitch.enableReceive(MainRadio::rxInterrupt);
         // Switch to searching state
         state = State::Searching;
       }
@@ -379,6 +388,51 @@ namespace
     return functionState;
   }
 
+  Menu::FunctionState systemCallback(Menu::Action action, int param)
+  {
+    enum class State
+    {
+      Disabled,
+      Info,
+    };
+
+    static State state = State::Disabled;
+
+    // Handle new action
+    switch (action)
+    {
+    case Menu::Action::Exit:
+      if (state != State::Disabled)
+      {
+        Display::clear();
+        // Switch to disabled state
+        state = State::Disabled;
+      }
+      break;
+
+    case Menu::Action::Enter:
+      if (state == State::Disabled)
+      {
+        // Update display
+        Display::clear();
+        Display::printf(0, Display::Line::Header, "System info");
+        Display::printf(0, Display::Line::Line_1, "FW version: %d.%d", FwVersion::major, FwVersion::minor);
+        Display::printf(0, Display::Line::Navigation, "<<EXIT");
+        // Switch to info state
+        state = State::Info;
+      }
+      break;
+
+    default:
+      break;
+    }
+
+    Menu::FunctionState functionState = (state == State::Disabled) ? Menu::FunctionState::Inactive
+                                                                   : Menu::FunctionState::Active;
+
+    return functionState;
+  }
+
   void setupSlotItemsMenu()
   {
     for (uint8_t slotIdx = 0; slotIdx < Slot::slotsCount; slotIdx++)
@@ -395,17 +449,19 @@ namespace
 
   void initializeRadio()
   {
-    pinMode(radioRxPin, INPUT);
-    pinMode(radioTxPin, OUTPUT);
+    pinMode(MainRadio::rxPin, INPUT);
+    pinMode(MainRadio::txPin, OUTPUT);
 
     // Setup transmitter on TX pin
-    rcSwitch.enableTransmit(radioTxPin);
+    rcSwitch.enableTransmit(MainRadio::txPin);
   }
 } // namespace
 
 void setup()
 {
   Serial.begin(115200);
+
+  Log::printf("FW version: %d.%d", FwVersion::major, FwVersion::minor);
 
   initializeRadio();
 

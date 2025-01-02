@@ -5,7 +5,7 @@
 namespace Slot
 {
     // Number of slot items
-    static constexpr uint8_t slotsCount = 10;
+    static constexpr uint8_t slotsCount = 5;
     static constexpr uint8_t invalidIdx = slotsCount;
 
 #pragma pack(push, 1)
