@@ -45,6 +45,14 @@ namespace Display
   void initialize();
 
   /**
+   * @brief Set inverted mode
+   *
+   * @param isInverted true for inverted mode, false for normal
+   * @param isPermanent true if set mode is permament, false if temporary
+   */
+  void setInverted(bool isInverted, bool isPermanent = false);
+
+  /**
    * @brief Set font style for printed text
    *
    * @param style New font style

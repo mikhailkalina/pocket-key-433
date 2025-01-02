@@ -18,6 +18,9 @@ namespace
     constexpr uint8_t lineOffsets[] = {0, 16, 24, 32, 40, 48, 56};
     static_assert(sizeof(lineOffsets) / sizeof(*lineOffsets) == static_cast<uint8_t>(Line::Count));
 
+    // Current inverted mode
+    bool isInvertedPermanent = false;
+    bool isInvertedInUse = isInvertedPermanent;
     // Current font style
     Style stylePermanent = Style::Normal;
     Style styleInUse = stylePermanent;
@@ -42,6 +45,33 @@ void Display::initialize()
     ssd1306_128x64_i2c_init();
     ssd1306_clearScreen();
     ssd1306_setFixedFont(ssd1306xled_font6x8);
+}
+
+/**
+ * @brief Set inverted mode
+ *
+ * @param isInverted true for inverted mode, false for normal
+ * @param isPermanent true if set mode is permament, false if temporary
+ */
+void Display::setInverted(bool isInverted, bool isPermanent = false)
+{
+    if (isInvertedInUse != isInverted)
+    {
+        isInvertedInUse = isInverted;
+        if (isInvertedInUse == true)
+        {
+            ssd1306_negativeMode();
+        }
+        else
+        {
+            ssd1306_positiveMode();
+        }
+    }
+
+    if (isPermanent == true && isInvertedPermanent != isInverted)
+    {
+        isInvertedPermanent = isInverted;
+    }
 }
 
 /**
@@ -148,6 +178,12 @@ void Display::printf(uint8_t xPos, Line line, const char *format, ...)
 
     uint8_t yPos = lineOffsets[(uint8_t)line];
     ssd1306_printFixed(xPos, yPos, buffer, fontStyle);
+
+    if (isInvertedInUse != isInvertedPermanent)
+    {
+        // Return permanent inverted mode in use
+        setInverted(isInvertedPermanent);
+    }
 
     if (styleInUse != stylePermanent)
     {

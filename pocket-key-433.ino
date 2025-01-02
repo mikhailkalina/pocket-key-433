@@ -12,7 +12,7 @@ namespace
   namespace FwVersion
   {
     constexpr uint8_t major = 0;
-    constexpr uint8_t minor = 1;
+    constexpr uint8_t minor = 2;
   } // namespace FwVersion
 
   namespace MainRadio
@@ -183,12 +183,12 @@ namespace
 
         if (pItem == pDrawItem)
         {
-          Display::setStyle(Display::Style::Bold);
-          Display::printf(0, line, ">%-20.20s", pItem->text);
+          Display::setInverted(true);
+          Display::printf(4, line, "%-20.20s", pItem->text);
         }
         else
         {
-          Display::printf(0, line, " %-20.20s", pItem ? pItem->text : "");
+          Display::printf(4, line, "%-20.20s", pItem ? pItem->text : "");
         }
 
         pItem = pItem ? pItem->next : nullptr;
@@ -365,7 +365,7 @@ namespace
 
         // Update display
         Display::clear();
-        Display::printf(0, Display::Line::Header, "Found:");
+        Display::printf(0, Display::Line::Header, "Signal");
         Display::printf(0, Display::Line::Line_1, " Protocol: %02u", rxSignal.protocol);
         Display::printf(0, Display::Line::Line_2, " Value: 0x%08X", rxSignal.value);
         Display::printf(0, Display::Line::Line_3, " Bits: %2u", rxSignal.bitLength);
