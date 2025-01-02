@@ -25,6 +25,10 @@ namespace
 
   namespace MainMenu
   {
+    constexpr uint8_t headerXPix = 0;
+    constexpr uint8_t linesXPix = 4;
+    constexpr uint8_t navigationXPix = 1;
+
     constexpr uint8_t pageItemCount = 5;
     constexpr Display::Line displayLines[] = {
         Display::Line::Line_1,
@@ -142,7 +146,7 @@ namespace
     {
       // Show parent header text
       const char *headerText = pDrawItem->parent != nullptr ? pDrawItem->parent->text : MainMenu::rootHeader;
-      Display::printf(0, Display::Line::Header, "%-16.16s", headerText);
+      Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", headerText);
 
       // Count previous items
       uint8_t prevItemCount = 0;
@@ -165,7 +169,8 @@ namespace
       // Show navigation info
       uint8_t itemIdx = prevItemCount;
       uint8_t itemsCount = prevItemCount + 1 + nextItemCount;
-      Display::printf(0, Display::Line::Navigation, "<BACK   %2u/%-2u  ENTER>", itemIdx + 1, itemsCount);
+      Display::printf(MainMenu::navigationXPix, Display::Line::Navigation,
+                      "<BACK   %2u/%-2u  ENTER>", itemIdx + 1, itemsCount);
 
       // Find the first item on current page
       uint8_t itemOffset = itemIdx % MainMenu::pageItemCount;
@@ -184,11 +189,11 @@ namespace
         if (pItem == pDrawItem)
         {
           Display::setInverted(true);
-          Display::printf(4, line, "%-20.20s", pItem->text);
+          Display::printf(MainMenu::linesXPix, line, "%-20.20s", pItem->text);
         }
         else
         {
-          Display::printf(4, line, "%-20.20s", pItem ? pItem->text : "");
+          Display::printf(MainMenu::linesXPix, line, "%-20.20s", pItem ? pItem->text : "");
         }
 
         pItem = pItem ? pItem->next : nullptr;
@@ -242,19 +247,19 @@ namespace
         txSignal = Slot::getSignal(selectedSlotIdx);
         if (txSignal == Slot::signalInvalid)
         {
-          Display::printf(0, Display::Line::Header, "No signal");
-          Display::printf(0, Display::Line::Line_1, "Go to search menu");
-          Display::printf(0, Display::Line::Navigation, "<<EXIT               ");
+          Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "No signal saved");
+          Display::printf(MainMenu::linesXPix, Display::Line::Line_1, "Go to search menu");
+          Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT");
           // Switch to no signal state
           state = State::NoSignal;
         }
         else
         {
-          Display::printf(0, Display::Line::Header, "Signal");
-          Display::printf(0, Display::Line::Line_1, " Protocol: %02u", txSignal.protocol);
-          Display::printf(0, Display::Line::Line_2, " Value: 0x%08X", txSignal.value);
-          Display::printf(0, Display::Line::Line_3, " Bits: %2u", txSignal.bitLength);
-          Display::printf(0, Display::Line::Navigation, "<<EXIT         SEND>>");
+          Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "Signal TX");
+          Display::printf(MainMenu::linesXPix, Display::Line::Line_1, "Protocol: %02u", txSignal.protocol);
+          Display::printf(MainMenu::linesXPix, Display::Line::Line_2, "Value: 0x%08X", txSignal.value);
+          Display::printf(MainMenu::linesXPix, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
+          Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT         SEND>>");
           // Switch to signal opened state
           state = State::SignalOpened;
         }
@@ -265,14 +270,14 @@ namespace
       if (state == State::SignalOpened)
       {
         // Update display
-        Display::printf(0, Display::Line::Header, "Sending...");
-        Display::printf(0, Display::Line::Navigation, "<<EXIT               ");
+        Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "Sending...");
+        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "%-21.21s", "");
         // Send signal
         rcSwitch.setProtocol(txSignal.protocol);
         rcSwitch.send(txSignal.value, txSignal.bitLength);
         // Update display
-        Display::printf(0, Display::Line::Header, "Sending OK");
-        Display::printf(0, Display::Line::Navigation, "<<EXIT         SEND>>");
+        Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "Signal TX");
+        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT         SEND>>");
       }
       break;
 
@@ -318,9 +323,9 @@ namespace
       {
         // Update display
         Display::clear();
-        Display::printf(0, Display::Line::Header, "Searching...");
-        Display::printf(0, Display::Line::Line_1, "Please wait");
-        Display::printf(0, Display::Line::Navigation, "<<EXIT");
+        Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "Searching...");
+        Display::printf(MainMenu::linesXPix, Display::Line::Line_1, "Please wait");
+        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT");
         // Reset previous found signal if any
         rcSwitch.resetAvailable();
         // Enable receiver interrupt on RX pin
@@ -338,7 +343,7 @@ namespace
         // New signal was found - save to EEPROM
         Slot::save(selectedSlotIdx);
         // Update display
-        Display::printf(0, Display::Line::Navigation, "<<EXIT        REPEAT>");
+        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT        REPEAT>");
         // Switch to saved state
         state = State::Saved;
       }
@@ -365,11 +370,11 @@ namespace
 
         // Update display
         Display::clear();
-        Display::printf(0, Display::Line::Header, "Signal");
-        Display::printf(0, Display::Line::Line_1, " Protocol: %02u", rxSignal.protocol);
-        Display::printf(0, Display::Line::Line_2, " Value: 0x%08X", rxSignal.value);
-        Display::printf(0, Display::Line::Line_3, " Bits: %2u", rxSignal.bitLength);
-        Display::printf(0, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
+        Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "Signal RX");
+        Display::printf(MainMenu::linesXPix, Display::Line::Line_1, "Protocol: %02u", rxSignal.protocol);
+        Display::printf(MainMenu::linesXPix, Display::Line::Line_2, "Value: 0x%08X", rxSignal.value);
+        Display::printf(MainMenu::linesXPix, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
+        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
 
         // Switch to saved state
         state = State::Found;
@@ -409,9 +414,9 @@ namespace
       {
         // Update display
         Display::clear();
-        Display::printf(0, Display::Line::Header, "System info");
-        Display::printf(0, Display::Line::Line_1, "FW version: %d.%d", FwVersion::major, FwVersion::minor);
-        Display::printf(0, Display::Line::Navigation, "<<EXIT");
+        Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "System info");
+        Display::printf(MainMenu::linesXPix, Display::Line::Line_1, "FW version: %d.%d", FwVersion::major, FwVersion::minor);
+        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT");
         // Switch to info state
         state = State::Info;
       }
