@@ -39,45 +39,39 @@ namespace
     const char rootHeader[] = "Pocket Key";
   } // namespace Menu
 
-  // Menu item definitions
-  extern Menu::Item slotRootMenu;
-  extern Menu::Item settingsMenu;
-  extern Menu::Item slotListMenu[];
-  extern Menu::Item slotNameMenu;
-  extern Menu::Item slotSearchMenu;
-  extern Menu::Item slotEmulateMenu;
-  extern Menu::Item slotDeleteMenu;
-  extern Menu::Item displayMenu;
-  extern Menu::Item systemMenu;
-  extern Menu::Item brightnessMenu;
-  extern Menu::Item timeoutMenu;
-
   // Menu item's functionality callback prototypes
   Menu::FunctionState slotEmulateCallback(Menu::Action action, int param);
   Menu::FunctionState slotSearchCallback(Menu::Action action, int param);
   Menu::FunctionState systemCallback(Menu::Action action, int param);
 
-  // Root menu
-  Menu::Item slotRootMenu = {"Slots", nullptr, &settingsMenu, slotListMenu};
-  Menu::Item settingsMenu = {"Settings", &slotRootMenu, nullptr, &displayMenu};
+  namespace MenuItem
+  {
+    // Menu item definitions
+    extern Menu::Item slotRoot;
+    extern Menu::Item slotList[];
+    extern Menu::Item slotEmulate;
+    extern Menu::Item slotSearch;
+    extern Menu::Item slotName;
+    extern Menu::Item settings;
+    extern Menu::Item system;
 
-  // Slots list menu
-  Menu::Item slotListMenu[Slot::slotsCount] = {0};
+    // Root menu
+    Menu::Item slotRoot = {"Slots", nullptr, &settings, slotList};
+    Menu::Item settings = {"Settings", &slotRoot, nullptr, &system};
 
-  // Slot item menu
-  Menu::Item slotEmulateMenu = {"Emulate", nullptr, &slotSearchMenu, nullptr, slotEmulateCallback};
-  Menu::Item slotSearchMenu = {"Search", &slotEmulateMenu, &slotNameMenu, nullptr, slotSearchCallback};
-  Menu::Item slotNameMenu = {"Name", &slotSearchMenu, nullptr, nullptr};
+    // Slots list menu
+    Menu::Item slotList[Slot::slotsCount] = {0};
 
-  // Settings menu
-  Menu::Item displayMenu = {"Display", nullptr, &systemMenu, &brightnessMenu};
-  Menu::Item systemMenu = {"System", &displayMenu, nullptr, nullptr, systemCallback};
+    // Slot item menu
+    Menu::Item slotEmulate = {"Emulate", nullptr, &slotSearch, nullptr, slotEmulateCallback};
+    Menu::Item slotSearch = {"Search", &slotEmulate, &slotName, nullptr, slotSearchCallback};
+    Menu::Item slotName = {"Name", &slotSearch, nullptr, nullptr};
 
-  // Display menu
-  Menu::Item brightnessMenu = {"Brightness", nullptr, &timeoutMenu, nullptr};
-  Menu::Item timeoutMenu = {"Timeout", &brightnessMenu, nullptr, nullptr};
+    // Settings menu
+    Menu::Item system = {"System", nullptr, nullptr, nullptr, systemCallback};
+  } // namespace MenuItem
 
-  const Menu::Item *pCurrentMenu = &slotRootMenu;
+  const Menu::Item *pCurrentMenu = &MenuItem::slotRoot;
   uint8_t selectedSlotIdx = Slot::invalidIdx;
 
   RCSwitch rcSwitch = RCSwitch();
@@ -433,15 +427,15 @@ namespace
     return functionState;
   }
 
-  void setupSlotItemsMenu()
+  void setupSlotItemMenu()
   {
     for (uint8_t slotIdx = 0; slotIdx < Slot::slotsCount; slotIdx++)
     {
-      Menu::Item &itemMenu = slotListMenu[slotIdx];
+      Menu::Item &itemMenu = MenuItem::slotList[slotIdx];
       itemMenu.text = Slot::getName(slotIdx);
-      itemMenu.prev = (slotIdx == 0) ? nullptr : &slotListMenu[slotIdx - 1];
-      itemMenu.next = (slotIdx == Slot::slotsCount - 1) ? nullptr : &slotListMenu[slotIdx + 1];
-      itemMenu.child = &slotEmulateMenu;
+      itemMenu.prev = (slotIdx == 0) ? nullptr : &MenuItem::slotList[slotIdx - 1];
+      itemMenu.next = (slotIdx == Slot::slotsCount - 1) ? nullptr : &MenuItem::slotList[slotIdx + 1];
+      itemMenu.child = &MenuItem::slotEmulate;
       itemMenu.callback = slotItemCallback;
       itemMenu.param = slotIdx;
     }
@@ -473,7 +467,7 @@ void setup()
 
   // Slot::eraseAll(); // uncomment to erase all slots on the storage
   Slot::loadAll();
-  setupSlotItemsMenu();
+  setupSlotItemMenu();
 
   // Draw current menu initially
   drawMenu(pCurrentMenu);
