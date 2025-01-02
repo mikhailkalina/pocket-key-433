@@ -6,7 +6,7 @@
 namespace Display
 {
   /**
-   * @brief Font style identifiers
+   * @brief Font styles
    */
   enum class Style
   {
@@ -16,12 +16,27 @@ namespace Display
   };
 
   /**
-   * @brief Font size identifiers
+   * @brief Font sizes
    */
   enum class Size
   {
-    Bits_8,  // 8 bit height
-    Bits_16, // 16 bit height
+    Font_6x8,  // 6 width x 8 height pixels
+    Font_8x16, // 8 width x 16 height pixels
+  };
+
+  /**
+   * @brief Line identifiers
+   */
+  enum class Line
+  {
+    Header,
+    Line_1,
+    Line_2,
+    Line_3,
+    Line_4,
+    Line_5,
+    Navigation,
+    Count, // should be the last one
   };
 
   /**
@@ -49,11 +64,11 @@ namespace Display
    * @brief Print formatted string to the specified position of the display
    *
    * @param xPos Horisontal position, pixels
-   * @param yPos Vertical position, pixels
+   * @param line Vertical line identifier
    * @param format Formatted string
    * @param ... Parameters for formatted string
    */
-  void printf(uint8_t xPos, uint8_t yPos, const char *format, ...);
+  void printf(uint8_t xPos, Line line, const char *format, ...);
 
   /**
    * @brief Clear the screen

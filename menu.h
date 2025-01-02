@@ -3,7 +3,7 @@
 namespace Menu
 {
     /**
-     * @brief Menu action identifiers
+     * @brief Menu actions to process
      */
     enum class Action
     {
@@ -13,10 +13,26 @@ namespace Menu
         Enter,
         Back,
         Exit,
+        Set,
     };
 
-    // Menu entered function prototype
-    typedef void (*Callback)(Action action, int param);
+    /**
+     * @brief Menu item's functionality states
+     */
+    enum class FunctionState
+    {
+        Inactive,
+        Active,
+    };
+
+    /**
+     * @brief Menu item's functionality callback prototype
+     *
+     * @param action Menu action to proceed
+     * @param param Menu item's parameter
+     * @return Menu item's functionality state
+     */
+    typedef FunctionState (*Callback)(Action action, int param);
 
     /**
      * @brief Menu item structure
@@ -33,18 +49,11 @@ namespace Menu
     };
 
     /**
-     * @brief Navigate user through the menu according to the action
+     * @brief Process menu action
      *
+     * @param pItem Current menu item
      * @param action New action
-     * @return Current selected menu item
+     * @return New menu item if selected, nullptr otherwise
      */
-    const Item *navigate(Action action);
-
-    /**
-     * @brief Draw specified menu item
-     * Set menu item as current for navigation
-     *
-     * @param pItem Menu item to draw
-     */
-    void draw(const Item *pItem);
+    const Item *process(const Item *pItem, Action action);
 } // namespace Menu

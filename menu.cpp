@@ -2,170 +2,86 @@
 
 #include <stdint.h>
 
-#include "display.h"
-
 using namespace Menu;
 
 namespace
 {
-    constexpr uint8_t pageItemCount = 5;
-    constexpr uint8_t headerHeightPix = 16;
-    constexpr uint8_t itemHeightPix = 8;
-    constexpr uint8_t navInfoYPosPix = headerHeightPix + pageItemCount * itemHeightPix;
-
-    // String for root item header
-    const char rootHeader[] = "Pocket Key";
-
-    const Item *pCurrentItem = nullptr;
-    bool isMenuSpecific = false;
-} // namespace
-
-/**
- * @brief Navigate user through the menu according to the buttons actions
- *
- * @param buttonId Button that triggered the action
- * @return Current selected menu item
- */
-const Item *Menu::navigate(Action action)
-{
-    if (pCurrentItem != nullptr)
+    const Item *navigate(const Item *pItem, Action action)
     {
         Item *pNewItem = nullptr;
 
         switch (action)
         {
         case Action::Prev:
-            pNewItem = pCurrentItem->prev;
+            pNewItem = pItem->prev;
             if (pNewItem != nullptr)
             {
                 // Save parent to exit properly
-                pNewItem->parent = pCurrentItem->parent;
+                pNewItem->parent = pItem->parent;
             }
             break;
 
         case Action::Next:
-            pNewItem = pCurrentItem->next;
+            pNewItem = pItem->next;
             if (pNewItem != nullptr)
             {
                 // Save parent to exit properly
-                pNewItem->parent = pCurrentItem->parent;
+                pNewItem->parent = pItem->parent;
             }
             break;
 
         case Action::Enter:
-            pNewItem = pCurrentItem->child;
+            pNewItem = pItem->child;
             if (pNewItem != nullptr)
             {
                 // Save parent to exit properly
-                pNewItem->parent = pCurrentItem;
-            }
-            else if (isMenuSpecific == false)
-            {
-                // Start menu specific function
-                isMenuSpecific = true;
-                Display::clear();
+                pNewItem->parent = pItem;
             }
             break;
 
         case Action::Back:
-            pNewItem = pCurrentItem->parent;
+            pNewItem = pItem->parent;
             break;
 
         case Action::Exit:
-            if (isMenuSpecific == true)
-            {
-                // End menu specific function
-                isMenuSpecific = false;
-                pNewItem = pCurrentItem;
-            }
+            pNewItem = pItem;
             break;
 
         default:
             break;
         }
 
-        if (pCurrentItem->callback != nullptr)
-        {
-            pCurrentItem->callback(action, pCurrentItem->param);
-        }
-
-        if (isMenuSpecific == false && pNewItem != nullptr)
-        {
-            // Draw new menu item
-            draw(pNewItem);
-        }
+        return pNewItem;
     }
-
-    return pCurrentItem;
-}
+} // namespace
 
 /**
- * @brief Draw specified menu item
- * Set menu item as current for navigation
+ * @brief Process menu action
  *
- * @param pItem Menu item to draw
+ * @param pItem Current menu item
+ * @param action New action
+ * @return New menu item if selected, nullptr otherwise
  */
-void Menu::draw(const Item *pItem)
+const Item *Menu::process(const Item *pItem, Action action)
 {
+    const Item *pNewItem = nullptr;
+
     if (pItem != nullptr)
     {
-        pCurrentItem = pItem;
+        FunctionState functionState = FunctionState::Inactive;
 
-        // Show parent header text
-        const char *headerText = pCurrentItem->parent != nullptr ? pCurrentItem->parent->text : rootHeader;
-        Display::setStyle(Display::Style::Bold);
-        Display::setSize(Display::Size::Bits_16);
-        Display::printf(0, 0, "%-16.16s", headerText);
-
-        // Count previous items
-        uint8_t prevItemCount = 0;
-        pItem = pCurrentItem->prev;
-        while (pItem != nullptr)
+        if (pItem->callback != nullptr)
         {
-            prevItemCount++;
-            pItem = pItem->prev;
+            // Process item's functionality
+            functionState = pItem->callback(action, pItem->param);
         }
 
-        // Count next items
-        uint8_t nextItemCount = 0;
-        pItem = pCurrentItem->next;
-        while (pItem != nullptr)
+        if (functionState == FunctionState::Inactive)
         {
-            nextItemCount++;
-            pItem = pItem->next;
-        }
-
-        // Show navigation info
-        uint8_t itemIdx = prevItemCount;
-        uint8_t itemsCount = prevItemCount + 1 + nextItemCount;
-        Display::printf(0, navInfoYPosPix, "<BACK   %2u/%-2u  ENTER>", itemIdx + 1, itemsCount);
-
-        // Find the first item on current page
-        uint8_t itemOffset = itemIdx % pageItemCount;
-        pItem = pCurrentItem;
-        while (itemOffset > 0)
-        {
-            pItem = pItem->prev;
-            itemOffset--;
-        }
-
-        // Fill menu items on current page
-        while (itemOffset < pageItemCount)
-        {
-            const uint8_t yPosPix = headerHeightPix + itemOffset * itemHeightPix;
-
-            if (pItem == pCurrentItem)
-            {
-                Display::setStyle(Display::Style::Bold);
-                Display::printf(0, yPosPix, ">%-20.20s", pItem->text);
-            }
-            else
-            {
-                Display::printf(0, yPosPix, " %-20.20s", pItem ? pItem->text : "");
-            }
-
-            pItem = pItem ? pItem->next : nullptr;
-            itemOffset++;
+            // Navigate through the menu according to the action
+            pNewItem = navigate(pItem, action);
         }
     }
+
+    return pNewItem;
 }
