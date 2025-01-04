@@ -180,6 +180,7 @@ namespace
 
     // Slots list menu
     Menu::Item slotList[Slot::slotsCount] = {0};
+    char slotNameList[Slot::slotsCount][Slot::nameLengthMax + 1] = {0};
 
     // Slot item menu
     Menu::Item slotEmulate = {"Emulate", nullptr, &slotSearch, nullptr, slotEmulateCallback};
@@ -197,7 +198,8 @@ namespace
       for (uint8_t slotIdx = 0; slotIdx < Slot::slotsCount; slotIdx++)
       {
         Menu::Item &itemMenu = MenuItem::slotList[slotIdx];
-        itemMenu.text = Slot::getName(slotIdx);
+        itemMenu.text = slotNameList[slotIdx];
+        Slot::getName(slotIdx, itemMenu.text);
         itemMenu.prev = (slotIdx == 0) ? nullptr : &MenuItem::slotList[slotIdx - 1];
         itemMenu.next = (slotIdx == Slot::slotsCount - 1) ? nullptr : &MenuItem::slotList[slotIdx + 1];
         itemMenu.child = &MenuItem::slotEmulate;
@@ -397,7 +399,7 @@ namespace
       {
         // Update display
         Display::clear();
-        txSignal = Slot::getSignal(selectedSlotIdx);
+        Slot::getSignal(selectedSlotIdx, txSignal);
         if (txSignal == Slot::signalInvalid)
         {
           Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "No signal saved");
@@ -410,7 +412,7 @@ namespace
         {
           Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Signal TX");
           Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_1, "Protocol: %02u", txSignal.protocol);
-          Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_2, "Value: 0x%08X", txSignal.value);
+          Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_2, "Value: 0x%02lX", txSignal.value);
           Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
           Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT         SEND>>");
           // Switch to signal opened state
@@ -497,8 +499,6 @@ namespace
       {
         // Set signal to current selected slot
         Slot::setSignal(selectedSlotIdx, rxSignal);
-        // New signal was found - save to EEPROM
-        Slot::save(selectedSlotIdx);
         // Update display
         Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT        REPEAT>");
         // Switch to saved state
@@ -525,7 +525,7 @@ namespace
         Display::clear();
         Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Signal RX");
         Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_1, "Protocol: %02u", rxSignal.protocol);
-        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_2, "Value: 0x%08X", rxSignal.value);
+        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_2, "Value: 0x%02lX", rxSignal.value);
         Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
         Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
 
@@ -637,11 +637,8 @@ void setup()
   // Initialize radio
   Radio::initialize();
 
-  // Erase all slots on the EEPROM
-  // Slot::eraseAll();
-
-  // Load all slot data from the EEPROM
-  Slot::loadAll();
+  // Erase all slots on the storage
+  // Slot::eraseStorage();
 
   // Setup slot menu items with slot data
   MenuItem::setupSlots();

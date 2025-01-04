@@ -1,5 +1,7 @@
 #include "log.h"
 
+#include <stdio.h>
+
 #include <Arduino.h>
 
 using namespace Log;
