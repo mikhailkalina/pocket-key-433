@@ -52,7 +52,7 @@ namespace
     constexpr uint8_t linesOffsetXPix = 4;
     constexpr uint8_t navOffsetXPix = 1;
 
-    constexpr unsigned long welcomeDelayMs = 2000;
+    constexpr unsigned long welcomeTimeMs = 3000;
     constexpr unsigned long systemInfoUpdatePeriodMs = 1000;
 
     constexpr uint8_t pageItemCount = 5;
@@ -66,20 +66,20 @@ namespace
     static_assert(sizeof(displayLines) / sizeof(*displayLines) == pageItemCount);
 
     // String for root menu header
-    const char rootHeader[] = "Pocket Key";
+    const char rootHeaderString[] = "Pocket Key";
+    const char authorString[] = "Inspired by mr drone";
 
     /**
      * @brief Show welcome screen
      */
-    void showWelcome()
+    void showSystemInfo(const char *headerString)
     {
-      Display::printf(headerOffsetXPix, Display::Line::Header, rootHeader);
-      Display::printf(linesOffsetXPix, Display::Line::Line_1, "by drone v.%u.%u", FwVersion::major, FwVersion::minor);
+      Display::printf(headerOffsetXPix, Display::Line::Header, "%-16.16s", headerString);
+      Display::printf(linesOffsetXPix, Display::Line::Line_1, authorString);
 
       uint16_t batteryVoltage = Battery::readVoltage();
       Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
-
-      delay(welcomeDelayMs);
+      Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_4, "Firmware: v%u.%u", FwVersion::major, FwVersion::minor);
     }
   } // namespace Menu
 
@@ -281,7 +281,7 @@ namespace
       bool isRootMenu = (pDrawItem->parent == nullptr);
 
       // Show parent header text
-      const char *headerText = isRootMenu ? MainMenu::rootHeader : pDrawItem->parent->text;
+      const char *headerText = isRootMenu ? MainMenu::rootHeaderString : pDrawItem->parent->text;
       Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", headerText);
 
       // Count previous items
@@ -548,7 +548,7 @@ namespace
     enum class State
     {
       Disabled,
-      Info,
+      ShowInfo,
     };
 
     static State state = State::Disabled;
@@ -571,11 +571,11 @@ namespace
       {
         // Update display
         Display::clear();
-        Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "System info");
-        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_2, "FW version: %u.%u", FwVersion::major, FwVersion::minor);
+        MainMenu::showSystemInfo("System info");
         Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT");
-        // Switch to info state
-        state = State::Info;
+        lastUpdateTimeMs = millis();
+        // Switch to show info state
+        state = State::ShowInfo;
       }
       break;
 
@@ -583,7 +583,7 @@ namespace
       break;
     }
 
-    if (state == State::Info)
+    if (state == State::ShowInfo)
     {
       unsigned long currentTimeMs = millis();
       if (currentTimeMs > lastUpdateTimeMs + MainMenu::systemInfoUpdatePeriodMs)
@@ -607,7 +607,7 @@ void setup()
   Serial.begin(115200);
 
   // Log FW version info
-  Log::printf("FW version: %d.%d", FwVersion::major, FwVersion::minor);
+  Log::printf("Firmware: v%d.%d", FwVersion::major, FwVersion::minor);
 
   // Initialize battery voltage readings
   Battery::initialize();
@@ -620,7 +620,8 @@ void setup()
   Display::initialize();
 
   // Show welcome screen
-  MainMenu::showWelcome();
+  MainMenu::showSystemInfo(MainMenu::rootHeaderString);
+  unsigned long welcomeEndTimeMs = millis() + MainMenu::welcomeTimeMs;
 
   // Initialize buttons
   Button::initialize();
@@ -637,6 +638,12 @@ void setup()
   // Setup slot menu items with slot data
   MenuItem::setupSlots();
 
+  // Wait until welcome screen time ends
+  while (millis() < welcomeEndTimeMs)
+  {
+    delay(1);
+  }
+
   // Draw current menu initially
   drawMenu(pCurrentMenu);
 }
@@ -646,9 +653,11 @@ void loop()
   Button::Id buttonId = Button::process();
   if (buttonId != Button::Id::None)
   {
+#if 0 // Set to 1 to trace button states
     Log::printf("UP:%u DOWN:%u LEFT:%u RIGHT:%u",
                 Button::getState(Button::Id::Up), Button::getState(Button::Id::Down),
                 Button::getState(Button::Id::Left), Button::getState(Button::Id::Right));
+#endif
   }
 
   // Get menu action according to the button event
