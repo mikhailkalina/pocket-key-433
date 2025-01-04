@@ -12,22 +12,48 @@ namespace
   namespace FwVersion
   {
     constexpr uint8_t major = 0;
-    constexpr uint8_t minor = 2;
+    constexpr uint8_t minor = 3;
   } // namespace FwVersion
 
-  namespace MainRadio
+  namespace Battery
   {
-    constexpr uint8_t rxPin = 2;
-    constexpr uint8_t txPin = 10;
-    // Receiver on pin #2 => that is interrupt 0
-    constexpr uint8_t rxInterrupt = 0;
-  } // namespace MainRadio
+    constexpr uint8_t inputPin = A0;
+
+    constexpr uint16_t voltageMax = 5000;  // millivolts
+    constexpr uint16_t rawValueMax = 1023; // bits
+
+    /**
+     * @brief Initialize battery voltage readings
+     */
+    void initialize()
+    {
+      pinMode(inputPin, INPUT);
+    }
+
+    /**
+     * @brief Read battery voltage
+     *
+     * @return Current battery voltage
+     */
+    uint16_t readVoltage()
+    {
+      uint16_t rawValue = analogRead(inputPin);
+
+      // Calculate voltage from raw reading
+      uint16_t voltage = (uint32_t)rawValue * voltageMax / rawValueMax;
+
+      return voltage;
+    }
+  } // namespace Battery
 
   namespace MainMenu
   {
-    constexpr uint8_t headerXPix = 0;
-    constexpr uint8_t linesXPix = 4;
-    constexpr uint8_t navigationXPix = 1;
+    constexpr uint8_t headerOffsetXPix = 0;
+    constexpr uint8_t linesOffsetXPix = 4;
+    constexpr uint8_t navOffsetXPix = 1;
+
+    constexpr unsigned long welcomeDelayMs = 2000;
+    constexpr unsigned long systemInfoUpdatePeriodMs = 1000;
 
     constexpr uint8_t pageItemCount = 5;
     constexpr Display::Line displayLines[] = {
@@ -41,9 +67,96 @@ namespace
 
     // String for root menu header
     const char rootHeader[] = "Pocket Key";
+
+    /**
+     * @brief Show welcome screen
+     */
+    void showWelcome()
+    {
+      Display::printf(headerOffsetXPix, Display::Line::Header, rootHeader);
+      Display::printf(linesOffsetXPix, Display::Line::Line_1, "by drone v.%u.%u", FwVersion::major, FwVersion::minor);
+
+      uint16_t batteryVoltage = Battery::readVoltage();
+      Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
+
+      delay(welcomeDelayMs);
+    }
   } // namespace Menu
 
+  namespace Radio
+  {
+    constexpr uint8_t rxPin = 2;
+    constexpr uint8_t txPin = 10;
+    // Receiver on pin #2 => that is interrupt 0
+    constexpr uint8_t rxInterrupt = 0;
+
+    RCSwitch rcSwitch = RCSwitch();
+
+    /**
+     * @brief Initialize radio
+     */
+    void initialize()
+    {
+      pinMode(rxPin, INPUT);
+      pinMode(txPin, OUTPUT);
+
+      // Setup transmitter on TX pin
+      rcSwitch.enableTransmit(txPin);
+    }
+
+    /**
+     * @brief Enable receiver interrupt handling
+     */
+    inline void enableReciever()
+    {
+      // Reset previous found signal if any
+      rcSwitch.resetAvailable();
+
+      // Enable receiver interrupt on RX pin
+      rcSwitch.enableReceive(rxInterrupt);
+    }
+
+    /**
+     * @brief Disable receiver interrupt handling
+     */
+    inline void disableReciever()
+    {
+      rcSwitch.disableReceive();
+    }
+
+    /**
+     * @brief Read received signal
+     *
+     * @param signal Signal to read
+     * @return true if signal was read, false if no signal received
+     */
+    bool readSignal(Slot::Signal &signal)
+    {
+      bool result = rcSwitch.available();
+      if (result == true)
+      {
+        signal.protocol = rcSwitch.getReceivedProtocol();
+        signal.value = rcSwitch.getReceivedValue();
+        signal.bitLength = rcSwitch.getReceivedBitlength();
+      }
+
+      return result;
+    }
+
+    /**
+     * @brief Send signal to transmit
+     *
+     * @param signal Signal to transmit
+     */
+    void sendSignal(const Slot::Signal &signal)
+    {
+      rcSwitch.setProtocol(signal.protocol);
+      rcSwitch.send(signal.value, signal.bitLength);
+    }
+  } // namespace Radio
+
   // Menu item's functionality callback prototypes
+  Menu::FunctionState slotItemCallback(Menu::Action action, int param);
   Menu::FunctionState slotEmulateCallback(Menu::Action action, int param);
   Menu::FunctionState slotSearchCallback(Menu::Action action, int param);
   Menu::FunctionState systemCallback(Menu::Action action, int param);
@@ -73,13 +186,34 @@ namespace
 
     // Settings menu
     Menu::Item system = {"System", nullptr, nullptr, nullptr, systemCallback};
+
+    /**
+     * @brief Setup slot menu items with slot data
+     */
+    void setupSlots()
+    {
+      for (uint8_t slotIdx = 0; slotIdx < Slot::slotsCount; slotIdx++)
+      {
+        Menu::Item &itemMenu = MenuItem::slotList[slotIdx];
+        itemMenu.text = Slot::getName(slotIdx);
+        itemMenu.prev = (slotIdx == 0) ? nullptr : &MenuItem::slotList[slotIdx - 1];
+        itemMenu.next = (slotIdx == Slot::slotsCount - 1) ? nullptr : &MenuItem::slotList[slotIdx + 1];
+        itemMenu.child = &MenuItem::slotEmulate;
+        itemMenu.callback = slotItemCallback;
+        itemMenu.param = slotIdx;
+      }
+    }
   } // namespace MenuItem
 
   const Menu::Item *pCurrentMenu = &MenuItem::slotRoot;
   uint8_t selectedSlotIdx = Slot::invalidIdx;
 
-  RCSwitch rcSwitch = RCSwitch();
-
+  /**
+   * @brief Return menu action according to the button events
+   *
+   * @param buttonId Button identifier caused the event
+   * @return Current menu action
+   */
   Menu::Action getMenuAction(Button::Id buttonId)
   {
     Menu::Action menuAction = Menu::Action::None;
@@ -144,9 +278,11 @@ namespace
   {
     if (pDrawItem != nullptr)
     {
+      bool isRootMenu = (pDrawItem->parent == nullptr);
+
       // Show parent header text
-      const char *headerText = pDrawItem->parent != nullptr ? pDrawItem->parent->text : MainMenu::rootHeader;
-      Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", headerText);
+      const char *headerText = isRootMenu ? MainMenu::rootHeader : pDrawItem->parent->text;
+      Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", headerText);
 
       // Count previous items
       uint8_t prevItemCount = 0;
@@ -169,8 +305,9 @@ namespace
       // Show navigation info
       uint8_t itemIdx = prevItemCount;
       uint8_t itemsCount = prevItemCount + 1 + nextItemCount;
-      Display::printf(MainMenu::navigationXPix, Display::Line::Navigation,
-                      "<BACK   %2u/%-2u  ENTER>", itemIdx + 1, itemsCount);
+      Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation,
+                      isRootMenu ? "        %2u/%-2u  ENTER>" : "<BACK   %2u/%-2u  ENTER>",
+                      itemIdx + 1, itemsCount);
 
       // Find the first item on current page
       uint8_t itemOffset = itemIdx % MainMenu::pageItemCount;
@@ -189,11 +326,11 @@ namespace
         if (pItem == pDrawItem)
         {
           Display::setInverted(true);
-          Display::printf(MainMenu::linesXPix, line, "%-20.20s", pItem->text);
+          Display::printf(MainMenu::linesOffsetXPix, line, "%-20.20s", pItem->text);
         }
         else
         {
-          Display::printf(MainMenu::linesXPix, line, "%-20.20s", pItem ? pItem->text : "");
+          Display::printf(MainMenu::linesOffsetXPix, line, "%-20.20s", pItem ? pItem->text : "");
         }
 
         pItem = pItem ? pItem->next : nullptr;
@@ -202,6 +339,13 @@ namespace
     }
   }
 
+  /**
+   * @brief Slot selection menu item's functionality callback
+   *
+   * @param action New menu action
+   * @param param Menu item's parameter
+   * @return Current menu item's function state
+   */
   Menu::FunctionState slotItemCallback(Menu::Action action, int param)
   {
     Menu::FunctionState functionState = Menu::FunctionState::Inactive;
@@ -214,6 +358,13 @@ namespace
     return functionState;
   }
 
+  /**
+   * @brief Slot emulation menu item's functionality callback
+   *
+   * @param action New menu action
+   * @param param Menu item's parameter
+   * @return Current menu item's function state
+   */
   Menu::FunctionState slotEmulateCallback(Menu::Action action, int param)
   {
     enum class State
@@ -247,19 +398,19 @@ namespace
         txSignal = Slot::getSignal(selectedSlotIdx);
         if (txSignal == Slot::signalInvalid)
         {
-          Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "No signal saved");
-          Display::printf(MainMenu::linesXPix, Display::Line::Line_1, "Go to search menu");
-          Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT");
+          Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "No signal saved");
+          Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_1, "Go to search menu");
+          Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT");
           // Switch to no signal state
           state = State::NoSignal;
         }
         else
         {
-          Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "Signal TX");
-          Display::printf(MainMenu::linesXPix, Display::Line::Line_1, "Protocol: %02u", txSignal.protocol);
-          Display::printf(MainMenu::linesXPix, Display::Line::Line_2, "Value: 0x%08X", txSignal.value);
-          Display::printf(MainMenu::linesXPix, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
-          Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT         SEND>>");
+          Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Signal TX");
+          Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_1, "Protocol: %02u", txSignal.protocol);
+          Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_2, "Value: 0x%08X", txSignal.value);
+          Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
+          Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT         SEND>>");
           // Switch to signal opened state
           state = State::SignalOpened;
         }
@@ -270,14 +421,13 @@ namespace
       if (state == State::SignalOpened)
       {
         // Update display
-        Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "Sending...");
-        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "%-21.21s", "");
-        // Send signal
-        rcSwitch.setProtocol(txSignal.protocol);
-        rcSwitch.send(txSignal.value, txSignal.bitLength);
+        Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Sending...");
+        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "%-21.21s", "");
+        // Send signal to the radio
+        Radio::sendSignal(txSignal);
         // Update display
-        Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "Signal TX");
-        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT         SEND>>");
+        Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Signal TX");
+        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT         SEND>>");
       }
       break;
 
@@ -291,6 +441,13 @@ namespace
     return functionState;
   }
 
+  /**
+   * @brief Slot searching menu item's functionality callback
+   *
+   * @param action New menu action
+   * @param param Menu item's parameter
+   * @return Current menu item's function state
+   */
   Menu::FunctionState slotSearchCallback(Menu::Action action, int param)
   {
     enum class State
@@ -311,8 +468,8 @@ namespace
       if (state != State::Disabled)
       {
         Display::clear();
-        // Enable receiver interrupt
-        rcSwitch.disableReceive();
+        // Disable receiver
+        Radio::disableReciever();
         // Switch to disabled state
         state = State::Disabled;
       }
@@ -323,13 +480,11 @@ namespace
       {
         // Update display
         Display::clear();
-        Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "Searching...");
-        Display::printf(MainMenu::linesXPix, Display::Line::Line_1, "Please wait");
-        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT");
-        // Reset previous found signal if any
-        rcSwitch.resetAvailable();
-        // Enable receiver interrupt on RX pin
-        rcSwitch.enableReceive(MainRadio::rxInterrupt);
+        Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Searching...");
+        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_1, "Please wait");
+        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT");
+        // Enable radio receiver
+        Radio::enableReciever();
         // Switch to searching state
         state = State::Searching;
       }
@@ -343,7 +498,7 @@ namespace
         // New signal was found - save to EEPROM
         Slot::save(selectedSlotIdx);
         // Update display
-        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT        REPEAT>");
+        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT        REPEAT>");
         // Switch to saved state
         state = State::Saved;
       }
@@ -355,26 +510,20 @@ namespace
 
     if (state == State::Searching)
     {
-      bool isSignalFound = rcSwitch.available();
-      if (isSignalFound == true)
+      bool isSignalRead = Radio::readSignal(rxSignal);
+      if (isSignalRead == true)
       {
-        // Disable receiver interrupt
-        rcSwitch.disableReceive();
-
-        // Get signal parameters
-        rxSignal.protocol = rcSwitch.getReceivedProtocol();
-        rxSignal.value = rcSwitch.getReceivedValue();
-        rxSignal.bitLength = rcSwitch.getReceivedBitlength();
+        Radio::disableReciever();
 
         Log::printf("Rx %02u: %u/%u", rxSignal.protocol, rxSignal.value, rxSignal.bitLength);
 
         // Update display
         Display::clear();
-        Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "Signal RX");
-        Display::printf(MainMenu::linesXPix, Display::Line::Line_1, "Protocol: %02u", rxSignal.protocol);
-        Display::printf(MainMenu::linesXPix, Display::Line::Line_2, "Value: 0x%08X", rxSignal.value);
-        Display::printf(MainMenu::linesXPix, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
-        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
+        Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Signal RX");
+        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_1, "Protocol: %02u", rxSignal.protocol);
+        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_2, "Value: 0x%08X", rxSignal.value);
+        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
+        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
 
         // Switch to saved state
         state = State::Found;
@@ -387,6 +536,13 @@ namespace
     return functionState;
   }
 
+  /**
+   * @brief System information menu item's functionality callback
+   *
+   * @param action New menu action
+   * @param param Menu item's parameter
+   * @return Current menu item's function state
+   */
   Menu::FunctionState systemCallback(Menu::Action action, int param)
   {
     enum class State
@@ -396,6 +552,7 @@ namespace
     };
 
     static State state = State::Disabled;
+    static unsigned long lastUpdateTimeMs = 0;
 
     // Handle new action
     switch (action)
@@ -414,9 +571,9 @@ namespace
       {
         // Update display
         Display::clear();
-        Display::printf(MainMenu::headerXPix, Display::Line::Header, "%-16.16s", "System info");
-        Display::printf(MainMenu::linesXPix, Display::Line::Line_1, "FW version: %d.%d", FwVersion::major, FwVersion::minor);
-        Display::printf(MainMenu::navigationXPix, Display::Line::Navigation, "<<EXIT");
+        Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "System info");
+        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_2, "FW version: %u.%u", FwVersion::major, FwVersion::minor);
+        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT");
         // Switch to info state
         state = State::Info;
       }
@@ -426,53 +583,59 @@ namespace
       break;
     }
 
+    if (state == State::Info)
+    {
+      unsigned long currentTimeMs = millis();
+      if (currentTimeMs > lastUpdateTimeMs + MainMenu::systemInfoUpdatePeriodMs)
+      {
+        uint16_t batteryVoltage = Battery::readVoltage();
+        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
+        lastUpdateTimeMs = currentTimeMs;
+      }
+    }
+
     Menu::FunctionState functionState = (state == State::Disabled) ? Menu::FunctionState::Inactive
                                                                    : Menu::FunctionState::Active;
 
     return functionState;
   }
-
-  void setupSlotItemMenu()
-  {
-    for (uint8_t slotIdx = 0; slotIdx < Slot::slotsCount; slotIdx++)
-    {
-      Menu::Item &itemMenu = MenuItem::slotList[slotIdx];
-      itemMenu.text = Slot::getName(slotIdx);
-      itemMenu.prev = (slotIdx == 0) ? nullptr : &MenuItem::slotList[slotIdx - 1];
-      itemMenu.next = (slotIdx == Slot::slotsCount - 1) ? nullptr : &MenuItem::slotList[slotIdx + 1];
-      itemMenu.child = &MenuItem::slotEmulate;
-      itemMenu.callback = slotItemCallback;
-      itemMenu.param = slotIdx;
-    }
-  }
-
-  void initializeRadio()
-  {
-    pinMode(MainRadio::rxPin, INPUT);
-    pinMode(MainRadio::txPin, OUTPUT);
-
-    // Setup transmitter on TX pin
-    rcSwitch.enableTransmit(MainRadio::txPin);
-  }
 } // namespace
 
 void setup()
 {
+  // Initialize serial port for logs
   Serial.begin(115200);
 
+  // Log FW version info
   Log::printf("FW version: %d.%d", FwVersion::major, FwVersion::minor);
 
-  initializeRadio();
+  // Initialize battery voltage readings
+  Battery::initialize();
 
-  // Initialize buttons
-  Button::initialize();
+  // Log battery info
+  uint16_t batteryVoltage = Battery::readVoltage();
+  Log::printf("Battery: %4u", batteryVoltage);
 
   // Initialize display
   Display::initialize();
 
-  // Slot::eraseAll(); // uncomment to erase all slots on the storage
+  // Show welcome screen
+  MainMenu::showWelcome();
+
+  // Initialize buttons
+  Button::initialize();
+
+  // Initialize radio
+  Radio::initialize();
+
+  // Erase all slots on the EEPROM
+  // Slot::eraseAll();
+
+  // Load all slot data from the EEPROM
   Slot::loadAll();
-  setupSlotItemMenu();
+
+  // Setup slot menu items with slot data
+  MenuItem::setupSlots();
 
   // Draw current menu initially
   drawMenu(pCurrentMenu);
