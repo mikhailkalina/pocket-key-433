@@ -7,6 +7,8 @@
 #include "menu.h"
 #include "slot.h"
 
+// #define LOG_DEBUG // Uncomment to enable log printing
+
 namespace
 {
   namespace FwVersion
@@ -515,7 +517,9 @@ namespace
       {
         Radio::disableReciever();
 
+#ifdef LOG_DEBUG
         Log::printf("Rx %02u: %u/%u", rxSignal.protocol, rxSignal.value, rxSignal.bitLength);
+#endif // LOG_DEBUG
 
         // Update display
         Display::clear();
@@ -606,15 +610,19 @@ void setup()
   // Initialize serial port for logs
   Serial.begin(115200);
 
+#ifdef LOG_DEBUG
   // Log FW version info
   Log::printf("Firmware: v%d.%d", FwVersion::major, FwVersion::minor);
+#endif // LOG_DEBUG
 
   // Initialize battery voltage readings
   Battery::initialize();
 
+#ifdef LOG_DEBUG
   // Log battery info
   uint16_t batteryVoltage = Battery::readVoltage();
   Log::printf("Battery: %4u", batteryVoltage);
+#endif // LOG_DEBUG
 
   // Initialize display
   Display::initialize();
@@ -653,11 +661,11 @@ void loop()
   Button::Id buttonId = Button::process();
   if (buttonId != Button::Id::None)
   {
-#if 0 // Set to 1 to trace button states
+#ifdef LOG_DEBUG
     Log::printf("UP:%u DOWN:%u LEFT:%u RIGHT:%u",
                 Button::getState(Button::Id::Up), Button::getState(Button::Id::Down),
                 Button::getState(Button::Id::Left), Button::getState(Button::Id::Right));
-#endif
+#endif // LOG_DEBUG
   }
 
   // Get menu action according to the button event

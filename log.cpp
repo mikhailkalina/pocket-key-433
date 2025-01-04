@@ -6,8 +6,12 @@ using namespace Log;
 
 namespace
 {
+#define LOG_ENABLE // Uncomment to enable log printing
+
+#ifdef LOG_ENABLE
   // Local buffer for log output
   char buffer[60];
+#endif // LOG_ENABLE
 } // namespace
 
 /**
@@ -18,6 +22,7 @@ namespace
  */
 void Log::printf(const char *format, ...)
 {
+#ifdef LOG_ENABLE
   va_list args;
 
   va_start(args, format);
@@ -25,4 +30,5 @@ void Log::printf(const char *format, ...)
   va_end(args);
 
   Serial.println(buffer);
+#endif // LOG_ENABLE
 }

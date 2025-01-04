@@ -7,20 +7,19 @@
 
 #include "log.h"
 
+// #define LOG_DEBUG // Uncomment to enable log printing
+
 using namespace Slot;
 
 namespace
 {
-    // 11 chars + 1 end of line
-    constexpr uint8_t nameLengthMax = 12;
-
 #pragma pack(push, 1)
     /**
      * @brief Slot item structure
      */
     struct SlotItem
     {
-        char name[nameLengthMax];
+        char name[nameLengthMax + 1]; // + 1 for end of line
         Signal signal;
     };
 #pragma pack(pop)
@@ -44,12 +43,16 @@ const Signal &Slot::getSignal(uint8_t slotIdx)
     {
         const Signal &signal = slotList[slotIdx].signal;
 
+#ifdef LOG_DEBUG
         Log::printf("Get slot[%u] signal: %u %lu/%u", slotIdx, signal.protocol, signal.value, signal.bitLength);
+#endif // LOG_DEBUG
 
         return signal;
     }
 
+#ifdef LOG_DEBUG
     Log::printf("Get slot[%u] signal: invalid", slotIdx);
+#endif // LOG_DEBUG
 
     return signalInvalid;
 }
@@ -66,7 +69,9 @@ void Slot::setSignal(uint8_t slotIdx, const Signal &signal)
     {
         SlotItem &slot = slotList[slotIdx]; // slot to set signal
 
+#ifdef LOG_DEBUG
         Log::printf("Set slot[%u] signal: %u %lu/%u", slotIdx, signal.protocol, signal.value, signal.bitLength);
+#endif // LOG_DEBUG
 
         slot.signal = signal;
     }
@@ -86,7 +91,9 @@ const char *Slot::getName(uint8_t slotIdx)
     {
         name = slotList[slotIdx].name;
 
+#ifdef LOG_DEBUG
         Log::printf("Get slot[%u] name: %s", slotIdx, name);
+#endif // LOG_DEBUG
     }
 
     return name;
@@ -104,7 +111,9 @@ void Slot::setName(uint8_t slotIdx, const char *name)
     {
         SlotItem &slot = slotList[slotIdx]; // slot to set name
 
+#ifdef LOG_DEBUG
         Log::printf("Set slot[%u] name: %s", slotIdx, name);
+#endif // LOG_DEBUG
 
         // Set name to default
         snprintf(slot.name, sizeof(slot.name), "%s", name);
@@ -122,7 +131,9 @@ void Slot::reset(uint8_t slotIdx)
     {
         SlotItem &slot = slotList[slotIdx]; // slot to reset
 
+#ifdef LOG_DEBUG
         Log::printf("Reset slot[%u]", slotIdx);
+#endif // LOG_DEBUG
 
         // Reset name to default
         snprintf(slot.name, sizeof(slot.name), "Slot %02d", slotIdx + 1);
@@ -146,7 +157,9 @@ void Slot::save(uint8_t slotIdx)
         int slotAddress = slotIdx * slotEepromSize;
         int crc8Address = slotAddress + sizeof(SlotItem);
 
+#ifdef LOG_DEBUG
         Log::printf("Save slot[%u]", slotIdx);
+#endif // LOG_DEBUG
 
         EEPROM.put(slotAddress, slot);
         EEPROM.put(crc8Address, crc8);
@@ -178,12 +191,17 @@ uint8_t Slot::loadAll()
             // Check if slot is valid on EEPROM
             if (slot.signal == signalInvalid)
             {
+#ifdef LOG_DEBUG
                 Log::printf("Load slot[%u]: \"%s\" invalid", slotIdx, slot.name);
+#endif // LOG_DEBUG
             }
             else
             {
+#ifdef LOG_DEBUG
                 Log::printf("Load slot[%u]: \"%s\" %u %lu/%u", slotIdx, slot.name,
                             slot.signal.protocol, slot.signal.value, slot.signal.bitLength);
+#endif // LOG_DEBUG
+
                 validCount++;
             }
         }

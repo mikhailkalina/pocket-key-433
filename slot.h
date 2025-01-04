@@ -5,8 +5,10 @@
 namespace Slot
 {
     // Number of slot items
-    static constexpr uint8_t slotsCount = 5;
+    static constexpr uint8_t slotsCount = 10;
     static constexpr uint8_t invalidIdx = slotsCount;
+    // Maximum name length
+    static constexpr uint8_t nameLengthMax = 11;
 
 #pragma pack(push, 1)
     /**
