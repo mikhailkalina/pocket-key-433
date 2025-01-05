@@ -11,3 +11,8 @@ Pinout (arduino nano):
 - battery IN: A0
 - display SDA: A4
 - display SCL: A5
+
+Arduino libraries used:
+- ssd1306 by Alexey Dynda
+- CRC by Rob Tillaart
+- rc-switch by sui77
