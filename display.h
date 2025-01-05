@@ -71,12 +71,12 @@ namespace Display
   /**
    * @brief Print formatted string to the specified position of the display
    *
-   * @param xPos Horisontal position, pixels
+   * @param charOffset Horisontal position offset from the left, characters
    * @param line Vertical line identifier
    * @param format Formatted string
    * @param ... Parameters for formatted string
    */
-  void printf(uint8_t xPos, Line line, const char *format, ...);
+  void printf(uint8_t charOffset, Line line, const char *format, ...);
 
   /**
    * @brief Clear the screen

@@ -24,7 +24,7 @@ namespace
 {
     constexpr unsigned long debounceTimeMs = 20;
     constexpr unsigned long holdStartTimeMs = 1000;
-    constexpr unsigned long holdContinueTimeMs = 200;
+    constexpr unsigned long holdContinueTimeMs = 100;
 
     // Button items list
     ButtonItem buttonList[] = {

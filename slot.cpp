@@ -59,7 +59,7 @@ namespace
     void reset(uint8_t slotIdx, SlotItem &item)
     {
         // Reset name to default
-        snprintf(item.name, sizeof(item.name), "Slot %02d", slotIdx + 1);
+        snprintf(item.name, sizeof(item.name), "Slot %02d     ", slotIdx + 1);
 
         // Invalidate the signal
         item.signal = signalInvalid;

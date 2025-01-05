@@ -9,11 +9,14 @@ using namespace Display;
 
 namespace
 {
-    constexpr uint8_t xWidthPix = 128;
-    constexpr uint8_t yHeightPix = 64;
+    constexpr uint8_t headerOffsetXPix = 0;
+    constexpr uint8_t linesOffsetXPix = 4;
+    constexpr uint8_t navOffsetXPix = 1;
 
-    constexpr uint8_t textSize6x8LengthMax = xWidthPix / 6 + 1;
-    constexpr uint8_t textSize8x16LengthMax = xWidthPix / 8 + 1;
+    constexpr uint8_t textSize6x8CharWidthPix = 6;
+    constexpr uint8_t textSize6x8LengthMax = 21;
+    constexpr uint8_t textSize8x16CharWidthPix = 8;
+    constexpr uint8_t textSize8x16LengthMax = 16;
 
     constexpr uint8_t lineOffsets[] = {0, 16, 24, 32, 40, 48, 56};
     static_assert(sizeof(lineOffsets) / sizeof(*lineOffsets) == static_cast<uint8_t>(Line::Count));
@@ -32,7 +35,9 @@ namespace
     EFontStyle fontStyle = STYLE_NORMAL;
 
     // Local buffer for text string
-    char buffer[textSize6x8LengthMax];
+    char buffer[textSize6x8LengthMax + 1];
+    // Character width, pixels
+    uint8_t charWidthPix = textSize6x8CharWidthPix;
     // Maximum length of the text
     uint8_t lengthMax = textSize6x8LengthMax;
 } // namespace
@@ -127,17 +132,20 @@ void Display::setSize(Size size, bool isPermanent)
         {
         case Size::Font_6x8:
             ssd1306_setFixedFont(ssd1306xled_font6x8);
+            charWidthPix = textSize6x8CharWidthPix;
             lengthMax = textSize6x8LengthMax;
             break;
 
         case Size::Font_8x16:
             ssd1306_setFixedFont(ssd1306xled_font8x16);
+            charWidthPix = textSize8x16CharWidthPix;
             lengthMax = textSize8x16LengthMax;
             break;
 
         default:
             sizeInUse = Size::Font_6x8;
             ssd1306_setFixedFont(ssd1306xled_font6x8);
+            charWidthPix = textSize6x8CharWidthPix;
             lengthMax = textSize6x8LengthMax;
             break;
         }
@@ -152,14 +160,14 @@ void Display::setSize(Size size, bool isPermanent)
 /**
  * @brief Print formatted string to the specified position of the display
  *
- * @param xPos Horisontal position, pixels
+ * @param charOffset Horisontal position offset from the left, characters
  * @param line Vertical line identifier
  * @param format Formatted string
  * @param ... Parameters for formatted string
  */
-void Display::printf(uint8_t xPos, Line line, const char *format, ...)
+void Display::printf(uint8_t charOffset, Line line, const char *format, ...)
 {
-    if (xPos >= xWidthPix || line >= Line::Count)
+    if (charOffset >= lengthMax || line >= Line::Count)
     {
         return;
     }
@@ -167,16 +175,27 @@ void Display::printf(uint8_t xPos, Line line, const char *format, ...)
     va_list args;
 
     va_start(args, format);
-    vsnprintf(buffer, lengthMax, format, args);
+    vsnprintf(buffer, lengthMax + 1, format, args);
     va_end(args);
+
+    uint8_t xPos = charOffset * charWidthPix;
+    uint8_t yPos = lineOffsets[(uint8_t)line];
 
     if (line == Line::Header)
     {
         Display::setStyle(Display::Style::Bold);
         Display::setSize(Display::Size::Font_8x16);
+        xPos += headerOffsetXPix;
+    }
+    else if (line == Line::Navigation)
+    {
+        xPos += navOffsetXPix;
+    }
+    else
+    {
+        xPos += linesOffsetXPix;
     }
 
-    uint8_t yPos = lineOffsets[(uint8_t)line];
     ssd1306_printFixed(xPos, yPos, buffer, fontStyle);
 
     if (isInvertedInUse != isInvertedPermanent)

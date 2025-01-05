@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include <Arduino.h>
 #include <RCSwitch.h>
 
@@ -50,10 +52,6 @@ namespace
 
   namespace MainMenu
   {
-    constexpr uint8_t headerOffsetXPix = 0;
-    constexpr uint8_t linesOffsetXPix = 4;
-    constexpr uint8_t navOffsetXPix = 1;
-
     constexpr unsigned long welcomeTimeMs = 3000;
     constexpr unsigned long systemInfoUpdatePeriodMs = 1000;
 
@@ -76,12 +74,13 @@ namespace
      */
     void showSystemInfo(const char *headerString)
     {
-      Display::printf(headerOffsetXPix, Display::Line::Header, "%-16.16s", headerString);
-      Display::printf(linesOffsetXPix, Display::Line::Line_1, authorString);
+      Display::printf(0, Display::Line::Header, "%-16.16s", headerString);
+      Display::setStyle(Display::Style::Italic);
+      Display::printf(0, Display::Line::Line_1, authorString);
 
       uint16_t batteryVoltage = Battery::readVoltage();
-      Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
-      Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_4, "Firmware: v%u.%u", FwVersion::major, FwVersion::minor);
+      Display::printf(0, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
+      Display::printf(0, Display::Line::Line_4, "Firmware: v%u.%u", FwVersion::major, FwVersion::minor);
     }
   } // namespace Menu
 
@@ -161,16 +160,19 @@ namespace
   Menu::FunctionState slotItemCallback(Menu::Action action, int param);
   Menu::FunctionState slotEmulateCallback(Menu::Action action, int param);
   Menu::FunctionState slotSearchCallback(Menu::Action action, int param);
+  Menu::FunctionState slotEditNameCallback(Menu::Action action, int param);
   Menu::FunctionState systemCallback(Menu::Action action, int param);
 
   namespace MenuItem
   {
+    const char allowedChars[] = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXWZabcdefghijklmnopqrstuvwxyz";
+
     // Menu item definitions
     extern Menu::Item slotRoot;
     extern Menu::Item slotList[];
     extern Menu::Item slotEmulate;
     extern Menu::Item slotSearch;
-    extern Menu::Item slotName;
+    extern Menu::Item slotEditName;
     extern Menu::Item settings;
     extern Menu::Item system;
 
@@ -184,11 +186,22 @@ namespace
 
     // Slot item menu
     Menu::Item slotEmulate = {"Emulate", nullptr, &slotSearch, nullptr, slotEmulateCallback};
-    Menu::Item slotSearch = {"Search", &slotEmulate, &slotName, nullptr, slotSearchCallback};
-    Menu::Item slotName = {"Name", &slotSearch, nullptr, nullptr};
+    Menu::Item slotSearch = {"Search", &slotEmulate, &slotEditName, nullptr, slotSearchCallback};
+    Menu::Item slotEditName = {"Edit name", &slotSearch, nullptr, nullptr, slotEditNameCallback};
 
     // Settings menu
     Menu::Item system = {"System", nullptr, nullptr, nullptr, systemCallback};
+
+    uint8_t getCharAllowedIdx(char ch)
+    {
+      uint8_t charIdx = strlen(allowedChars) - 1;
+      while (charIdx > 0 && ch != allowedChars[charIdx])
+      {
+        charIdx--;
+      }
+
+      return charIdx;
+    }
 
     /**
      * @brief Setup slot menu items with slot data
@@ -286,7 +299,7 @@ namespace
 
       // Show parent header text
       const char *headerText = isRootMenu ? MainMenu::rootHeaderString : pDrawItem->parent->text;
-      Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", headerText);
+      Display::printf(0, Display::Line::Header, "%-16.16s", headerText);
 
       // Count previous items
       uint8_t prevItemCount = 0;
@@ -309,7 +322,7 @@ namespace
       // Show navigation info
       uint8_t itemIdx = prevItemCount;
       uint8_t itemsCount = prevItemCount + 1 + nextItemCount;
-      Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation,
+      Display::printf(0, Display::Line::Navigation,
                       isRootMenu ? "        %2u/%-2u  ENTER>" : "<BACK   %2u/%-2u  ENTER>",
                       itemIdx + 1, itemsCount);
 
@@ -330,11 +343,11 @@ namespace
         if (pItem == pDrawItem)
         {
           Display::setInverted(true);
-          Display::printf(MainMenu::linesOffsetXPix, line, "%-20.20s", pItem->text);
+          Display::printf(0, line, "%-20.20s", pItem->text);
         }
         else
         {
-          Display::printf(MainMenu::linesOffsetXPix, line, "%-20.20s", pItem ? pItem->text : "");
+          Display::printf(0, line, "%-20.20s", pItem ? pItem->text : "");
         }
 
         pItem = pItem ? pItem->next : nullptr;
@@ -402,19 +415,19 @@ namespace
         Slot::getSignal(selectedSlotIdx, txSignal);
         if (txSignal == Slot::signalInvalid)
         {
-          Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "No signal saved");
-          Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_1, "Go to search menu");
-          Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT");
+          Display::printf(0, Display::Line::Header, "%-16.16s", "No signal saved");
+          Display::printf(0, Display::Line::Line_1, "Go to search menu");
+          Display::printf(0, Display::Line::Navigation, "<<EXIT");
           // Switch to no signal state
           state = State::NoSignal;
         }
         else
         {
-          Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Signal TX");
-          Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_1, "Protocol: %02u", txSignal.protocol);
-          Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_2, "Value: 0x%02lX", txSignal.value);
-          Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
-          Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT         SEND>>");
+          Display::printf(0, Display::Line::Header, "%-16.16s", "Signal TX");
+          Display::printf(0, Display::Line::Line_1, "Protocol: %02u", txSignal.protocol);
+          Display::printf(0, Display::Line::Line_2, "Value: 0x%02lX", txSignal.value);
+          Display::printf(0, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
+          Display::printf(0, Display::Line::Navigation, "<<EXIT         SEND>>");
           // Switch to signal opened state
           state = State::SignalOpened;
         }
@@ -425,13 +438,13 @@ namespace
       if (state == State::SignalOpened)
       {
         // Update display
-        Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Sending...");
-        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "%-21.21s", "");
+        Display::printf(0, Display::Line::Header, "%-16.16s", "Sending...");
+        Display::printf(0, Display::Line::Navigation, "%-21.21s", "");
         // Send signal to the radio
         Radio::sendSignal(txSignal);
         // Update display
-        Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Signal TX");
-        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT         SEND>>");
+        Display::printf(0, Display::Line::Header, "%-16.16s", "Signal TX");
+        Display::printf(0, Display::Line::Navigation, "<<EXIT         SEND>>");
       }
       break;
 
@@ -484,9 +497,9 @@ namespace
       {
         // Update display
         Display::clear();
-        Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Searching...");
-        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_1, "Please wait");
-        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT");
+        Display::printf(0, Display::Line::Header, "%-16.16s", "Searching...");
+        Display::printf(0, Display::Line::Line_1, "Please wait");
+        Display::printf(0, Display::Line::Navigation, "<<EXIT");
         // Enable radio receiver
         Radio::enableReciever();
         // Switch to searching state
@@ -500,7 +513,7 @@ namespace
         // Set signal to current selected slot
         Slot::setSignal(selectedSlotIdx, rxSignal);
         // Update display
-        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT        REPEAT>");
+        Display::printf(0, Display::Line::Navigation, "<<EXIT        REPEAT>");
         // Switch to saved state
         state = State::Saved;
       }
@@ -523,15 +536,174 @@ namespace
 
         // Update display
         Display::clear();
-        Display::printf(MainMenu::headerOffsetXPix, Display::Line::Header, "%-16.16s", "Signal RX");
-        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_1, "Protocol: %02u", rxSignal.protocol);
-        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_2, "Value: 0x%02lX", rxSignal.value);
-        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
-        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
+        Display::printf(0, Display::Line::Header, "%-16.16s", "Signal RX");
+        Display::printf(0, Display::Line::Line_1, "Protocol: %02u", rxSignal.protocol);
+        Display::printf(0, Display::Line::Line_2, "Value: 0x%02lX", rxSignal.value);
+        Display::printf(0, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
+        Display::printf(0, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
 
         // Switch to saved state
         state = State::Found;
       }
+    }
+
+    Menu::FunctionState functionState = (state == State::Disabled) ? Menu::FunctionState::Inactive
+                                                                   : Menu::FunctionState::Active;
+
+    return functionState;
+  }
+
+  /**
+   * @brief Slot name editing item's functionality callback
+   *
+   * @param action New menu action
+   * @param param Menu item's parameter
+   * @return Current menu item's function state
+   */
+  Menu::FunctionState slotEditNameCallback(Menu::Action action, int param)
+  {
+    enum class State
+    {
+      Disabled,
+      Refresh,
+      WaitInput,
+    };
+
+    static State state = State::Disabled;
+    static const char *currentName = nullptr;
+    static char newName[Slot::nameLengthMax + 1];
+    static uint8_t editCharOffset;
+    static uint8_t editCharAllowedIdx;
+
+    // Handle new action
+    switch (action)
+    {
+    case Menu::Action::Exit:
+      if (state != State::Disabled)
+      {
+        Display::clear();
+        // Switch to disabled state
+        state = State::Disabled;
+      }
+      break;
+
+    case Menu::Action::Enter:
+      if (state == State::Disabled)
+      {
+        // Update display
+        Display::clear();
+        Display::printf(0, Display::Line::Header, "%-16.16s", "Edit name");
+        // Copy current slot name
+        currentName = MenuItem::slotNameList[selectedSlotIdx];
+        snprintf(newName, sizeof(newName), "%-12s", currentName);
+        editCharOffset = 0;
+        editCharAllowedIdx = MenuItem::getCharAllowedIdx(newName[editCharOffset]);
+        // Switch to refresh state
+        state = State::Refresh;
+      }
+      else if (state == State::WaitInput)
+      {
+        if (editCharOffset < Slot::nameLengthMax - 1)
+        {
+          // Shift cursor to the right
+          editCharOffset++;
+        }
+        else
+        {
+          // Loop to the left
+          editCharOffset = 0;
+        }
+        editCharAllowedIdx = MenuItem::getCharAllowedIdx(newName[editCharOffset]);
+        // Switch to refresh state
+        state = State::Refresh;
+      }
+      break;
+
+    case Menu::Action::Back:
+      if (state == State::WaitInput)
+      {
+        if (editCharOffset > 0)
+        {
+          // Shift cursor to the left
+          editCharOffset--;
+        }
+        else
+        {
+          // Loop to the right
+          editCharOffset = Slot::nameLengthMax - 1;
+        }
+        editCharAllowedIdx = MenuItem::getCharAllowedIdx(newName[editCharOffset]);
+        // Switch to refresh state
+        state = State::Refresh;
+      }
+      break;
+
+    case Menu::Action::Prev:
+      if (state == State::WaitInput)
+      {
+        if (editCharAllowedIdx > 0)
+        {
+          editCharAllowedIdx--;
+        }
+        else
+        {
+          editCharAllowedIdx = strlen(MenuItem::allowedChars) - 1;
+        }
+        // Switch to refresh state
+        state = State::Refresh;
+      }
+      break;
+
+    case Menu::Action::Next:
+      if (state == State::WaitInput)
+      {
+        if (editCharAllowedIdx < strlen(MenuItem::allowedChars) - 1)
+        {
+          editCharAllowedIdx++;
+        }
+        else
+        {
+          editCharAllowedIdx = 0;
+        }
+        // Switch to refresh state
+        state = State::Refresh;
+      }
+      break;
+
+    case Menu::Action::Set:
+      if (state == State::WaitInput)
+      {
+        bool isNotEqual = (strncmp(newName, currentName, strlen(newName)) != 0);
+        if (isNotEqual == true)
+        {
+          // Copy new slot name
+          snprintf(currentName, sizeof(MenuItem::slotNameList[0]), "%-12s", newName);
+          // Save new slot name on the storage
+          Slot::setName(selectedSlotIdx, newName);
+          Display::printf(0, Display::Line::Navigation, "<<EXIT               ");
+        }
+      }
+      break;
+
+    default:
+      break;
+    }
+
+    if (state == State::Refresh)
+    {
+      // Update name
+      newName[editCharOffset] = MenuItem::allowedChars[editCharAllowedIdx];
+      Display::setSize(Display::Size::Font_8x16, true);
+      Display::printf(0, Display::Line::Line_2, newName);
+      Display::setInverted(true);
+      Display::printf(editCharOffset, Display::Line::Line_2, "%c", newName[editCharOffset]);
+      Display::setSize(Display::Size::Font_6x8, true);
+
+      bool isEqual = (strncmp(newName, currentName, strlen(newName)) == 0);
+      Display::printf(0, Display::Line::Navigation, isEqual ? "<<EXIT               " : "<<EXIT         SAVE>>");
+
+      // Switch to wait input state
+      state = State::WaitInput;
     }
 
     Menu::FunctionState functionState = (state == State::Disabled) ? Menu::FunctionState::Inactive
@@ -576,7 +748,7 @@ namespace
         // Update display
         Display::clear();
         MainMenu::showSystemInfo("System info");
-        Display::printf(MainMenu::navOffsetXPix, Display::Line::Navigation, "<<EXIT");
+        Display::printf(0, Display::Line::Navigation, "<<EXIT");
         lastUpdateTimeMs = millis();
         // Switch to show info state
         state = State::ShowInfo;
@@ -593,7 +765,7 @@ namespace
       if (currentTimeMs > lastUpdateTimeMs + MainMenu::systemInfoUpdatePeriodMs)
       {
         uint16_t batteryVoltage = Battery::readVoltage();
-        Display::printf(MainMenu::linesOffsetXPix, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
+        Display::printf(0, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
         lastUpdateTimeMs = currentTimeMs;
       }
     }
