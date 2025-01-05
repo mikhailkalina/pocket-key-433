@@ -16,7 +16,7 @@ namespace
   namespace FwVersion
   {
     constexpr uint8_t major = 0;
-    constexpr uint8_t minor = 3;
+    constexpr uint8_t minor = 4;
   } // namespace FwVersion
 
   namespace Battery
@@ -67,7 +67,7 @@ namespace
 
     // String for root menu header
     const char rootHeaderString[] = "Pocket Key";
-    const char authorString[] = "Inspired by mr drone";
+    const char authorString[] = "inspired by mr drone";
 
     /**
      * @brief Show welcome screen
