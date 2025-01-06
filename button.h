@@ -21,7 +21,7 @@ namespace Button
   {
     Released,
     Pressed,
-    Hold,
+    HeldDown,
   };
 
   /**

@@ -22,8 +22,8 @@ struct ButtonItem
 
 namespace
 {
-    constexpr unsigned long debounceTimeMs = 50;
-    constexpr unsigned long holdStartTimeMs = 1000;
+    constexpr unsigned long debounceTimeMs = 20;
+    constexpr unsigned long holdStartTimeMs = 500;
     constexpr unsigned long holdContinueTimeMs = 100;
 
     // Button items list
@@ -77,20 +77,21 @@ Id Button::process()
     {
         button.event = Event::None; // No action by default
 
+        // Read current pin level
         uint8_t buttonPinLevel = digitalRead(button.pin);
         if (buttonPinLevel == button.activeLevel)
         {
-            // Button is active
+            // Pin is active
             if (button.isActive == false)
             {
-                // First time detect active level
+                // First time when active level detected
                 button.isActive = true;
                 button.eventTimeMs = currentTimeMs;
             }
             else if (button.state == State::Released &&
                      currentTimeMs > button.eventTimeMs + debounceTimeMs)
             {
-                // Debounce time passed after press
+                // Debounce time passed after active level detected - button is pressed
                 button.event = Event::PressStart;
                 button.state = State::Pressed;
                 button.eventTimeMs = currentTimeMs;
@@ -98,12 +99,12 @@ Id Button::process()
             else if (button.state == State::Pressed &&
                      currentTimeMs > button.eventTimeMs + holdStartTimeMs)
             {
-                // Hold start time passed after press
+                // Hold start time passed after press event - button is held down
                 button.event = Event::HoldStart;
-                button.state = State::Hold;
+                button.state = State::HeldDown;
                 button.eventTimeMs = currentTimeMs;
             }
-            else if (button.state == State::Hold &&
+            else if (button.state == State::HeldDown &&
                      currentTimeMs > button.eventTimeMs + holdContinueTimeMs)
             {
                 // Hold continue time passed after last hold event
@@ -113,6 +114,7 @@ Id Button::process()
         }
         else if (button.isActive == true)
         {
+            // Pin is inactive
             button.isActive = false;
             if (button.state != State::Released)
             {

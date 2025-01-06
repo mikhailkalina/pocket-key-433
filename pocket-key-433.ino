@@ -103,6 +103,8 @@ namespace
 
       // Setup transmitter on TX pin
       rcSwitch.enableTransmit(txPin);
+      // Set transmit repetition to 1 packet per command
+      rcSwitch.setRepeatTransmit(1);
     }
 
     /**
@@ -239,7 +241,7 @@ namespace
     switch (buttonId)
     {
     case Button::Id::Up:
-      if (buttonEvent == Button::Event::PressStart ||
+      if (buttonEvent == Button::Event::PressEnd ||
           buttonEvent == Button::Event::HoldStart ||
           buttonEvent == Button::Event::HoldContinue)
       {
@@ -248,7 +250,7 @@ namespace
       break;
 
     case Button::Id::Down:
-      if (buttonEvent == Button::Event::PressStart ||
+      if (buttonEvent == Button::Event::PressEnd ||
           buttonEvent == Button::Event::HoldStart ||
           buttonEvent == Button::Event::HoldContinue)
       {
@@ -389,10 +391,12 @@ namespace
       Disabled,
       NoSignal,
       SignalOpened,
+      Sending,
     };
 
     static State state = State::Disabled;
     static Slot::Signal txSignal = Slot::signalInvalid;
+    static uint16_t txCount = 0;
 
     // Handle new action
     switch (action)
@@ -427,29 +431,49 @@ namespace
           Display::printf(0, Display::Line::Line_1, "Protocol: %02u", txSignal.protocol);
           Display::printf(0, Display::Line::Line_2, "Value: 0x%02lX", txSignal.value);
           Display::printf(0, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
-          Display::printf(0, Display::Line::Navigation, "<<EXIT         SEND>>");
+          Display::printf(0, Display::Line::Navigation, "<<EXIT          SEND>");
           // Switch to signal opened state
           state = State::SignalOpened;
         }
       }
       break;
 
-    case Menu::Action::Set:
-      if (state == State::SignalOpened)
+    default:
+      break;
+    }
+
+    if (state == State::SignalOpened)
+    {
+      Button::Event buttonEvent = Button::getEvent(Button::Id::Right);
+      if (buttonEvent == Button::Event::PressStart)
       {
         // Update display
         Display::printf(0, Display::Line::Header, "%-16.16s", "Sending...");
-        Display::printf(0, Display::Line::Navigation, "%-21.21s", "");
-        // Send signal to the radio
-        Radio::sendSignal(txSignal);
+        Display::printf(0, Display::Line::Navigation, "<<EXIT         SEND>>");
+        // Switch to sending state
+        txCount = 0;
+        state = State::Sending;
+      }
+    }
+
+    if (state == State::Sending)
+    {
+      Button::State buttonState = Button::getState(Button::Id::Right);
+      if (buttonState == Button::State::Released)
+      {
         // Update display
         Display::printf(0, Display::Line::Header, "%-16.16s", "Signal TX");
-        Display::printf(0, Display::Line::Navigation, "<<EXIT         SEND>>");
+        Display::printf(0, Display::Line::Navigation, "<<EXIT          SEND>");
+        // Switch back to signal opened state
+        state = State::SignalOpened;
       }
-      break;
-
-    default:
-      break;
+      else
+      {
+        // Send signal to the radio
+        Radio::sendSignal(txSignal);
+        txCount++;
+        Display::printf(9, Display::Line::Navigation, "%03u", txCount);
+      }
     }
 
     Menu::FunctionState functionState = (state == State::Disabled) ? Menu::FunctionState::Inactive
@@ -764,9 +788,10 @@ namespace
       unsigned long currentTimeMs = millis();
       if (currentTimeMs > lastUpdateTimeMs + MainMenu::systemInfoUpdatePeriodMs)
       {
+        lastUpdateTimeMs = currentTimeMs;
+
         uint16_t batteryVoltage = Battery::readVoltage();
         Display::printf(0, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
-        lastUpdateTimeMs = currentTimeMs;
       }
     }
 
