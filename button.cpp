@@ -16,8 +16,9 @@ struct ButtonItem
     const uint8_t activeLevel;
     State state;
     Event event;
-    bool isActive;
-    unsigned long eventTimeMs;
+    bool isActive;                   // Last read pin level is active
+    unsigned long levelChangeTimeMs; // Time of the last pin level change
+    unsigned long eventTimeMs;       // Time of the last button event
 };
 
 namespace
@@ -78,49 +79,47 @@ Id Button::process()
         button.event = Event::None; // No action by default
 
         // Read current pin level
-        uint8_t buttonPinLevel = digitalRead(button.pin);
-        if (buttonPinLevel == button.activeLevel)
+        bool isPinActive = (digitalRead(button.pin) == button.activeLevel);
+        if (isPinActive != button.isActive)
         {
-            // Pin is active
-            if (button.isActive == false)
-            {
-                // First time when active level detected
-                button.isActive = true;
-                button.eventTimeMs = currentTimeMs;
-            }
-            else if (button.state == State::Released &&
-                     currentTimeMs > button.eventTimeMs + debounceTimeMs)
-            {
-                // Debounce time passed after active level detected - button is pressed
-                button.event = Event::PressStart;
-                button.state = State::Pressed;
-                button.eventTimeMs = currentTimeMs;
-            }
-            else if (button.state == State::Pressed &&
-                     currentTimeMs > button.eventTimeMs + holdStartTimeMs)
-            {
-                // Hold start time passed after press event - button is held down
-                button.event = Event::HoldStart;
-                button.state = State::HeldDown;
-                button.eventTimeMs = currentTimeMs;
-            }
-            else if (button.state == State::HeldDown &&
-                     currentTimeMs > button.eventTimeMs + holdContinueTimeMs)
-            {
-                // Hold continue time passed after last hold event
-                button.event = Event::HoldContinue;
-                button.eventTimeMs = currentTimeMs;
-            }
+            // Pin level changed - restart debounce time
+            button.isActive = isPinActive;
+            button.levelChangeTimeMs = currentTimeMs;
         }
-        else if (button.isActive == true)
+        else if (currentTimeMs > button.levelChangeTimeMs + debounceTimeMs)
         {
-            // Pin is inactive
-            button.isActive = false;
-            if (button.state != State::Released)
+            // Debounce time passed after last pin level change - pin level is stable
+            if (button.isActive == true)
             {
+                // Pin is active
+                if (button.state == State::Released)
+                {
+                    // Button is pressed
+                    button.event = Event::PressStart;
+                    button.state = State::Pressed;
+                    button.eventTimeMs = currentTimeMs;
+                }
+                else if (button.state == State::Pressed &&
+                         currentTimeMs > button.eventTimeMs + holdStartTimeMs)
+                {
+                    // Hold start time passed after press event - button is held down
+                    button.event = Event::HoldStart;
+                    button.state = State::HeldDown;
+                    button.eventTimeMs = currentTimeMs;
+                }
+                else if (button.state == State::HeldDown &&
+                         currentTimeMs > button.eventTimeMs + holdContinueTimeMs)
+                {
+                    // Hold continue time passed after last hold event
+                    button.event = Event::HoldContinue;
+                    button.eventTimeMs = currentTimeMs;
+                }
+            }
+            else if (button.state != State::Released)
+            {
+                // Pin is inactive - button is released
                 // Determine action type according to state
                 button.event = (button.state == State::Pressed) ? Event::PressEnd : Event::HoldEnd;
-                // Button is released
                 button.state = State::Released;
             }
         }
