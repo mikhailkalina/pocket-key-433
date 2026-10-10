@@ -7,6 +7,7 @@
 #include "display.h"
 #include "log.h"
 #include "menu.h"
+#include "rc_custom.h"
 #include "slot.h"
 
 // #define LOG_DEBUG // Uncomment to enable log printing
@@ -109,6 +110,20 @@ namespace
 
     RCSwitch rcSwitch = RCSwitch();
 
+    // Receiver backends. Both use the same RX interrupt, so only one is active
+    // at a time; the search alternates between them to find any protocol.
+    enum class RxBackend : uint8_t
+    {
+      RcSwitch, // rc-switch protocols 1..12
+      Custom,   // CAME, NICE, AN-Motors
+    };
+
+    // Time slice spent on each backend before switching while searching
+    constexpr unsigned long rxBackendSwitchMs = 400;
+
+    RxBackend rxBackend = RxBackend::RcSwitch;
+    unsigned long rxBackendStartMs = 0;
+
     /**
      * @brief Initialize radio
      */
@@ -121,6 +136,48 @@ namespace
       rcSwitch.enableTransmit(txPin);
       // Set transmit repetition to 1 packet per command
       rcSwitch.setRepeatTransmit(1);
+
+      // Setup custom protocol backend on the same RX/TX pins
+      RcCustom::initialize(rxPin, rxInterrupt, txPin);
+    }
+
+    /**
+     * @brief Start receiving with the specified backend
+     *
+     * @param backend Receiver backend to activate
+     */
+    void startRxBackend(RxBackend backend)
+    {
+      if (backend == RxBackend::RcSwitch)
+      {
+        // Reset previous found signal if any
+        rcSwitch.resetAvailable();
+        // Enable receiver interrupt on RX pin
+        rcSwitch.enableReceive(rxInterrupt);
+      }
+      else
+      {
+        RcCustom::resetAvailable();
+        RcCustom::enableReceive();
+      }
+
+      rxBackend = backend;
+      rxBackendStartMs = millis();
+    }
+
+    /**
+     * @brief Stop the currently active receiver backend
+     */
+    void stopRxBackend()
+    {
+      if (rxBackend == RxBackend::RcSwitch)
+      {
+        rcSwitch.disableReceive();
+      }
+      else
+      {
+        RcCustom::disableReceive();
+      }
     }
 
     /**
@@ -128,11 +185,7 @@ namespace
      */
     inline void enableReciever()
     {
-      // Reset previous found signal if any
-      rcSwitch.resetAvailable();
-
-      // Enable receiver interrupt on RX pin
-      rcSwitch.enableReceive(rxInterrupt);
+      startRxBackend(RxBackend::RcSwitch);
     }
 
     /**
@@ -140,11 +193,14 @@ namespace
      */
     inline void disableReciever()
     {
-      rcSwitch.disableReceive();
+      stopRxBackend();
     }
 
     /**
      * @brief Read received signal
+     *
+     * Alternates between receiver backends when no signal is found, so a single
+     * search detects both rc-switch and custom protocols.
      *
      * @param signal Signal to read
      * @return true if signal was read, false if no signal received
@@ -153,14 +209,34 @@ namespace
     {
       // Read signal data with disabled interrupts, as it is updated by the receiver interrupt
       noInterrupts();
-      bool result = rcSwitch.available();
-      if (result == true)
+      bool result = false;
+      if (rxBackend == RxBackend::RcSwitch)
       {
-        signal.protocol = rcSwitch.getReceivedProtocol();
-        signal.value = rcSwitch.getReceivedValue();
-        signal.bitLength = rcSwitch.getReceivedBitlength();
+        result = rcSwitch.available();
+        if (result == true)
+        {
+          signal.protocol = rcSwitch.getReceivedProtocol();
+          signal.value = rcSwitch.getReceivedValue();
+          signal.bitLength = rcSwitch.getReceivedBitlength();
+        }
+      }
+      else
+      {
+        result = RcCustom::available();
+        if (result == true)
+        {
+          RcCustom::getReceived(signal.value, signal.protocol, signal.bitLength);
+        }
       }
       interrupts();
+
+      // Switch backend when the current one found nothing in its time slice
+      if (result == false && (millis() - rxBackendStartMs >= rxBackendSwitchMs))
+      {
+        stopRxBackend();
+        startRxBackend((rxBackend == RxBackend::RcSwitch) ? RxBackend::Custom
+                                                          : RxBackend::RcSwitch);
+      }
 
       return result;
     }
@@ -172,8 +248,15 @@ namespace
      */
     void sendSignal(const Slot::Signal &signal)
     {
-      rcSwitch.setProtocol(signal.protocol);
-      rcSwitch.send(signal.value, signal.bitLength);
+      if (RcCustom::isSupported(signal.protocol) == true)
+      {
+        RcCustom::send(signal.value, signal.protocol, signal.bitLength);
+      }
+      else
+      {
+        rcSwitch.setProtocol(signal.protocol);
+        rcSwitch.send(signal.value, signal.bitLength);
+      }
     }
   } // namespace Radio
 
@@ -257,6 +340,31 @@ namespace
 
   const Menu::Item *pCurrentMenu = &MenuItem::slotRoot;
   uint8_t selectedSlotIdx = Slot::invalidIdx;
+
+  // Buffer large enough for the longest protocol label (e.g. "AN-Motors")
+  constexpr uint8_t protocolLabelSize = 10;
+
+  /**
+   * @brief Build a human-readable protocol label
+   *
+   * Custom protocols are shown by name, rc-switch protocols by number.
+   *
+   * @param protocol Protocol identifier
+   * @param label Buffer to fill (at least protocolLabelSize bytes)
+   */
+  void getProtocolLabel(uint8_t protocol, char *label)
+  {
+    const char *name = RcCustom::getName_P(protocol);
+    if (name != nullptr)
+    {
+      strncpy_P(label, name, protocolLabelSize - 1);
+      label[protocolLabelSize - 1] = '\0';
+    }
+    else
+    {
+      snprintf_P(label, protocolLabelSize, PSTR("%02u"), protocol);
+    }
+  }
 
   /**
    * @brief Return menu action according to the button events
@@ -494,7 +602,9 @@ namespace
         else
         {
           MainMenu::showHeader(PSTR("Signal TX"));
-          DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %02u", txSignal.protocol);
+          char protocolLabel[protocolLabelSize];
+          getProtocolLabel(txSignal.protocol, protocolLabel);
+          DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %s", protocolLabel);
           DISPLAY_PRINTF(0, Display::Line::Line_2, "Value: 0x%02lX", txSignal.value);
           DISPLAY_PRINTF(0, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
           DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT          SEND>");
@@ -627,7 +737,9 @@ namespace
         // Update display
         Display::clear();
         MainMenu::showHeader(PSTR("Signal RX"));
-        DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %02u", rxSignal.protocol);
+        char protocolLabel[protocolLabelSize];
+        getProtocolLabel(rxSignal.protocol, protocolLabel);
+        DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %s", protocolLabel);
         DISPLAY_PRINTF(0, Display::Line::Line_2, "Value: 0x%02lX", rxSignal.value);
         DISPLAY_PRINTF(0, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
         DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
