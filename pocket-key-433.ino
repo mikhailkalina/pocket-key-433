@@ -135,6 +135,8 @@ namespace
      */
     bool readSignal(Slot::Signal &signal)
     {
+      // Read signal data with disabled interrupts, as it is updated by the receiver interrupt
+      noInterrupts();
       bool result = rcSwitch.available();
       if (result == true)
       {
@@ -142,6 +144,7 @@ namespace
         signal.value = rcSwitch.getReceivedValue();
         signal.bitLength = rcSwitch.getReceivedBitlength();
       }
+      interrupts();
 
       return result;
     }
