@@ -206,21 +206,23 @@ namespace
     extern Menu::Item settings;
     extern Menu::Item system;
 
-    // Root menu
-    Menu::Item slotRoot = {slotRootText, nullptr, &settings, slotList};
-    Menu::Item settings = {settingsText, &slotRoot, nullptr, &system};
+    // Menu item fields: text, prev, next, child, callback, param, parent, isTextInRam
 
-    // Slots list menu
-    Menu::Item slotList[Slot::slotsCount] = {0};
+    // Root menu
+    Menu::Item slotRoot = {slotRootText, nullptr, &settings, slotList, nullptr, 0, nullptr, false};
+    Menu::Item settings = {settingsText, &slotRoot, nullptr, &system, nullptr, 0, nullptr, false};
+
+    // Slots list menu (filled by setupSlots)
+    Menu::Item slotList[Slot::slotsCount] = {};
     char slotNameList[Slot::slotsCount][Slot::nameLengthMax + 1] = {0};
 
     // Slot item menu
-    Menu::Item slotEmulate = {slotEmulateText, nullptr, &slotSearch, nullptr, slotEmulateCallback};
-    Menu::Item slotSearch = {slotSearchText, &slotEmulate, &slotEditName, nullptr, slotSearchCallback};
-    Menu::Item slotEditName = {slotEditNameText, &slotSearch, nullptr, nullptr, slotEditNameCallback};
+    Menu::Item slotEmulate = {slotEmulateText, nullptr, &slotSearch, nullptr, slotEmulateCallback, 0, nullptr, false};
+    Menu::Item slotSearch = {slotSearchText, &slotEmulate, &slotEditName, nullptr, slotSearchCallback, 0, nullptr, false};
+    Menu::Item slotEditName = {slotEditNameText, &slotSearch, nullptr, nullptr, slotEditNameCallback, 0, nullptr, false};
 
     // Settings menu
-    Menu::Item system = {systemText, nullptr, nullptr, nullptr, systemCallback};
+    Menu::Item system = {systemText, nullptr, nullptr, nullptr, systemCallback, 0, nullptr, false};
 
     uint8_t getCharAllowedIdx(char ch)
     {
@@ -448,7 +450,7 @@ namespace
    * @param param Menu item's parameter
    * @return Current menu item's function state
    */
-  Menu::FunctionState slotEmulateCallback(Menu::Action action, int param)
+  Menu::FunctionState slotEmulateCallback(Menu::Action action, int /* param */)
   {
     enum class State : uint8_t
     {
@@ -553,7 +555,7 @@ namespace
    * @param param Menu item's parameter
    * @return Current menu item's function state
    */
-  Menu::FunctionState slotSearchCallback(Menu::Action action, int param)
+  Menu::FunctionState slotSearchCallback(Menu::Action action, int /* param */)
   {
     enum class State : uint8_t
     {
@@ -648,7 +650,7 @@ namespace
    * @param param Menu item's parameter
    * @return Current menu item's function state
    */
-  Menu::FunctionState slotEditNameCallback(Menu::Action action, int param)
+  Menu::FunctionState slotEditNameCallback(Menu::Action action, int /* param */)
   {
     enum class State : uint8_t
     {
@@ -814,7 +816,7 @@ namespace
    * @param param Menu item's parameter
    * @return Current menu item's function state
    */
-  Menu::FunctionState systemCallback(Menu::Action action, int param)
+  Menu::FunctionState systemCallback(Menu::Action action, int /* param */)
   {
     enum class State : uint8_t
     {

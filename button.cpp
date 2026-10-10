@@ -11,6 +11,12 @@ using namespace Button;
  */
 struct ButtonItem
 {
+    constexpr ButtonItem(Id id, uint8_t pin, uint8_t activeLevel)
+        : id(id), pin(pin), activeLevel(activeLevel),
+          state(State::Released), event(Event::None), isActive(false), levelChangeTimeMs(0), eventTimeMs(0)
+    {
+    }
+
     const Id id;
     const uint8_t pin;
     const uint8_t activeLevel;
@@ -27,28 +33,12 @@ namespace
     constexpr unsigned long holdStartTimeMs = 500;
     constexpr unsigned long holdContinueTimeMs = 100;
 
-    // Button items list
+    // Button items list: identifier, pin, active level
     ButtonItem buttonList[] = {
-        {
-            .id = Id::Up,
-            .pin = 4,
-            .activeLevel = LOW,
-        },
-        {
-            .id = Id::Down,
-            .pin = 5,
-            .activeLevel = LOW,
-        },
-        {
-            .id = Id::Left,
-            .pin = 6,
-            .activeLevel = LOW,
-        },
-        {
-            .id = Id::Right,
-            .pin = 7,
-            .activeLevel = LOW,
-        },
+        {Id::Up, 4, LOW},
+        {Id::Down, 5, LOW},
+        {Id::Left, 6, LOW},
+        {Id::Right, 7, LOW},
     };
 } // namespace
 
