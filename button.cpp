@@ -86,7 +86,7 @@ Id Button::process()
             button.isActive = isPinActive;
             button.levelChangeTimeMs = currentTimeMs;
         }
-        else if (currentTimeMs > button.levelChangeTimeMs + debounceTimeMs)
+        else if (currentTimeMs - button.levelChangeTimeMs > debounceTimeMs)
         {
             // Debounce time passed after last pin level change - pin level is stable
             if (button.isActive == true)
@@ -100,7 +100,7 @@ Id Button::process()
                     button.eventTimeMs = currentTimeMs;
                 }
                 else if (button.state == State::Pressed &&
-                         currentTimeMs > button.eventTimeMs + holdStartTimeMs)
+                         currentTimeMs - button.eventTimeMs > holdStartTimeMs)
                 {
                     // Hold start time passed after press event - button is held down
                     button.event = Event::HoldStart;
@@ -108,7 +108,7 @@ Id Button::process()
                     button.eventTimeMs = currentTimeMs;
                 }
                 else if (button.state == State::HeldDown &&
-                         currentTimeMs > button.eventTimeMs + holdContinueTimeMs)
+                         currentTimeMs - button.eventTimeMs > holdContinueTimeMs)
                 {
                     // Hold continue time passed after last hold event
                     button.event = Event::HoldContinue;

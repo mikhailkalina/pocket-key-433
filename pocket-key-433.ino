@@ -786,7 +786,7 @@ namespace
     if (state == State::ShowInfo)
     {
       unsigned long currentTimeMs = millis();
-      if (currentTimeMs > lastUpdateTimeMs + MainMenu::systemInfoUpdatePeriodMs)
+      if (currentTimeMs - lastUpdateTimeMs > MainMenu::systemInfoUpdatePeriodMs)
       {
         lastUpdateTimeMs = currentTimeMs;
 
@@ -826,7 +826,7 @@ void setup()
 
   // Show welcome screen
   MainMenu::showSystemInfo(MainMenu::rootHeaderString);
-  unsigned long welcomeEndTimeMs = millis() + MainMenu::welcomeTimeMs;
+  unsigned long welcomeStartTimeMs = millis();
 
   // Initialize buttons
   Button::initialize();
@@ -841,7 +841,7 @@ void setup()
   MenuItem::setupSlots();
 
   // Wait until welcome screen time ends
-  while (millis() < welcomeEndTimeMs)
+  while (millis() - welcomeStartTimeMs < MainMenu::welcomeTimeMs)
   {
     delay(1);
   }
