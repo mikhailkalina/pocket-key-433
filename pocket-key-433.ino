@@ -450,7 +450,7 @@ namespace
    */
   Menu::FunctionState slotEmulateCallback(Menu::Action action, int param)
   {
-    enum class State
+    enum class State : uint8_t
     {
       Disabled,
       NoSignal,
@@ -555,7 +555,7 @@ namespace
    */
   Menu::FunctionState slotSearchCallback(Menu::Action action, int param)
   {
-    enum class State
+    enum class State : uint8_t
     {
       Disabled,
       Searching,
@@ -650,7 +650,7 @@ namespace
    */
   Menu::FunctionState slotEditNameCallback(Menu::Action action, int param)
   {
-    enum class State
+    enum class State : uint8_t
     {
       Disabled,
       Refresh,
@@ -816,7 +816,7 @@ namespace
    */
   Menu::FunctionState systemCallback(Menu::Action action, int param)
   {
-    enum class State
+    enum class State : uint8_t
     {
       Disabled,
       ShowInfo,
@@ -927,9 +927,12 @@ void loop()
   if (buttonId != Button::Id::None)
   {
 #ifdef LOG_DEBUG
+    // Enum values are cast to unsigned int, as 1-byte enum is passed through variadic arguments as is
     Log::printf("UP:%u DOWN:%u LEFT:%u RIGHT:%u",
-                Button::getState(Button::Id::Up), Button::getState(Button::Id::Down),
-                Button::getState(Button::Id::Left), Button::getState(Button::Id::Right));
+                static_cast<unsigned int>(Button::getState(Button::Id::Up)),
+                static_cast<unsigned int>(Button::getState(Button::Id::Down)),
+                static_cast<unsigned int>(Button::getState(Button::Id::Left)),
+                static_cast<unsigned int>(Button::getState(Button::Id::Right)));
 #endif // LOG_DEBUG
   }
 

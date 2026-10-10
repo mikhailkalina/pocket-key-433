@@ -1,11 +1,13 @@
 #pragma once
 
+#include <stdint.h>
+
 namespace Menu
 {
     /**
      * @brief Menu actions to process
      */
-    enum class Action
+    enum class Action : uint8_t
     {
         None,
         Prev,
@@ -19,7 +21,7 @@ namespace Menu
     /**
      * @brief Menu item's functionality states
      */
-    enum class FunctionState
+    enum class FunctionState : uint8_t
     {
         Inactive,
         Active,

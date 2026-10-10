@@ -10,7 +10,7 @@ namespace Display
   /**
    * @brief Font styles
    */
-  enum class Style
+  enum class Style : uint8_t
   {
     Normal,
     Bold,
@@ -20,7 +20,7 @@ namespace Display
   /**
    * @brief Font sizes
    */
-  enum class Size
+  enum class Size : uint8_t
   {
     Font_6x8,  // 6 width x 8 height pixels
     Font_8x16, // 8 width x 16 height pixels
@@ -29,7 +29,7 @@ namespace Display
   /**
    * @brief Line identifiers
    */
-  enum class Line
+  enum class Line : uint8_t
   {
     Header,
     Line_1,

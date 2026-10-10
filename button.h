@@ -1,11 +1,13 @@
 #pragma once
 
+#include <stdint.h>
+
 namespace Button
 {
   /**
    * @brief Button identifiers
    */
-  enum class Id
+  enum class Id : uint8_t
   {
     None,
     Up,
@@ -17,7 +19,7 @@ namespace Button
   /**
    * @brief Button states
    */
-  enum class State
+  enum class State : uint8_t
   {
     Released,
     Pressed,
@@ -27,7 +29,7 @@ namespace Button
   /**
    * @brief Button events
    */
-  enum class Event
+  enum class Event : uint8_t
   {
     None,
     PressStart,
