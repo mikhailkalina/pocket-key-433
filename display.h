@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <avr/pgmspace.h>
+
 namespace Display
 {
   /**
@@ -70,16 +72,66 @@ namespace Display
 
   /**
    * @brief Print formatted string to the specified position of the display
+   * Use DISPLAY_PRINTF macro to get format string checked by compiler
    *
    * @param charOffset Horisontal position offset from the left, characters
    * @param line Vertical line identifier
+   * @param format Formatted string located in flash memory
+   * @param ... Parameters for formatted string
+   */
+  void printf_P(uint8_t charOffset, Line line, const char *format, ...);
+
+  /**
+   * @brief Check formatted string against parameters by compiler, never called
+   *
    * @param format Formatted string
    * @param ... Parameters for formatted string
    */
-  void printf(uint8_t charOffset, Line line, const char *format, ...) __attribute__((format(printf, 3, 4)));
+  __attribute__((format(printf, 1, 2))) inline void checkFormat(const char *, ...) {}
+
+  /**
+   * @brief Print string to the specified position of the display
+   * String is truncated and padded with spaces to the specified width
+   *
+   * @param charOffset Horisontal position offset from the left, characters
+   * @param line Vertical line identifier
+   * @param width Width of printed string, characters
+   * @param string String located in RAM
+   */
+  void printString(uint8_t charOffset, Line line, uint8_t width, const char *string);
+
+  /**
+   * @brief Print string to the specified position of the display
+   * String is truncated and padded with spaces to the specified width
+   *
+   * @param charOffset Horisontal position offset from the left, characters
+   * @param line Vertical line identifier
+   * @param width Width of printed string, characters
+   * @param string String located in flash memory
+   */
+  void printString_P(uint8_t charOffset, Line line, uint8_t width, const char *string);
 
   /**
    * @brief Clear the screen
    */
   void clear();
 } // namespace Display
+
+/**
+ * @brief Print formatted string to the specified position of the display
+ * Format string is placed in flash memory and checked by compiler against parameters
+ *
+ * @param charOffset Horisontal position offset from the left, characters
+ * @param line Vertical line identifier
+ * @param format Formatted string literal
+ * @param ... Parameters for formatted string
+ */
+#define DISPLAY_PRINTF(charOffset, line, format, ...)                  \
+  do                                                                  \
+  {                                                                   \
+    if (false)                                                        \
+    {                                                                 \
+      Display::checkFormat(format, ##__VA_ARGS__);                    \
+    }                                                                 \
+    Display::printf_P(charOffset, line, PSTR(format), ##__VA_ARGS__); \
+  } while (false)

@@ -39,13 +39,14 @@ namespace Menu
      */
     struct Item
     {
-        const char *text;
+        const char *text; // Located in flash memory unless isTextInRam is set
         const Item *prev;
         const Item *next;
         const Item *child;
         Callback callback;
         int param;
         mutable const Item *parent; // Updated during navigation
+        bool isTextInRam;
     };
 
     /**

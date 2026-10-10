@@ -65,22 +65,38 @@ namespace
     };
     static_assert(sizeof(displayLines) / sizeof(*displayLines) == pageItemCount);
 
+    // Maximum text lengths
+    constexpr uint8_t headerLengthMax = 16;
+    constexpr uint8_t itemTextLengthMax = 20;
+
     // String for root menu header
-    const char rootHeaderString[] = "Pocket Key";
-    const char authorString[] = "inspired by mr drone";
+    const char rootHeaderString[] PROGMEM = "Pocket Key";
+    const char authorString[] PROGMEM = "inspired by mr drone";
+
+    /**
+     * @brief Show header text
+     *
+     * @param headerString Header text located in flash memory
+     */
+    void showHeader(const char *headerString)
+    {
+      Display::printString_P(0, Display::Line::Header, headerLengthMax, headerString);
+    }
 
     /**
      * @brief Show welcome screen
+     *
+     * @param headerString Header text located in flash memory
      */
     void showSystemInfo(const char *headerString)
     {
-      Display::printf(0, Display::Line::Header, "%-16.16s", headerString);
+      showHeader(headerString);
       Display::setStyle(Display::Style::Italic);
-      Display::printf(0, Display::Line::Line_1, "%s", authorString);
+      Display::printString_P(0, Display::Line::Line_1, itemTextLengthMax, authorString);
 
       uint16_t batteryVoltage = Battery::readVoltage();
-      Display::printf(0, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
-      Display::printf(0, Display::Line::Line_4, "Firmware: v%u.%u", FwVersion::major, FwVersion::minor);
+      DISPLAY_PRINTF(0, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
+      DISPLAY_PRINTF(0, Display::Line::Line_4, "Firmware: v%u.%u", FwVersion::major, FwVersion::minor);
     }
   } // namespace Menu
 
@@ -170,7 +186,16 @@ namespace
 
   namespace MenuItem
   {
-    const char allowedChars[] = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    const char allowedChars[] PROGMEM = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    constexpr uint8_t allowedCharsCount = sizeof(allowedChars) - 1;
+
+    // Menu item texts
+    const char slotRootText[] PROGMEM = "Slots";
+    const char settingsText[] PROGMEM = "Settings";
+    const char slotEmulateText[] PROGMEM = "Emulate";
+    const char slotSearchText[] PROGMEM = "Search";
+    const char slotEditNameText[] PROGMEM = "Edit name";
+    const char systemText[] PROGMEM = "System";
 
     // Menu item definitions
     extern Menu::Item slotRoot;
@@ -182,25 +207,25 @@ namespace
     extern Menu::Item system;
 
     // Root menu
-    Menu::Item slotRoot = {"Slots", nullptr, &settings, slotList};
-    Menu::Item settings = {"Settings", &slotRoot, nullptr, &system};
+    Menu::Item slotRoot = {slotRootText, nullptr, &settings, slotList};
+    Menu::Item settings = {settingsText, &slotRoot, nullptr, &system};
 
     // Slots list menu
     Menu::Item slotList[Slot::slotsCount] = {0};
     char slotNameList[Slot::slotsCount][Slot::nameLengthMax + 1] = {0};
 
     // Slot item menu
-    Menu::Item slotEmulate = {"Emulate", nullptr, &slotSearch, nullptr, slotEmulateCallback};
-    Menu::Item slotSearch = {"Search", &slotEmulate, &slotEditName, nullptr, slotSearchCallback};
-    Menu::Item slotEditName = {"Edit name", &slotSearch, nullptr, nullptr, slotEditNameCallback};
+    Menu::Item slotEmulate = {slotEmulateText, nullptr, &slotSearch, nullptr, slotEmulateCallback};
+    Menu::Item slotSearch = {slotSearchText, &slotEmulate, &slotEditName, nullptr, slotSearchCallback};
+    Menu::Item slotEditName = {slotEditNameText, &slotSearch, nullptr, nullptr, slotEditNameCallback};
 
     // Settings menu
-    Menu::Item system = {"System", nullptr, nullptr, nullptr, systemCallback};
+    Menu::Item system = {systemText, nullptr, nullptr, nullptr, systemCallback};
 
     uint8_t getCharAllowedIdx(char ch)
     {
-      uint8_t charIdx = strlen(allowedChars) - 1;
-      while (charIdx > 0 && ch != allowedChars[charIdx])
+      uint8_t charIdx = allowedCharsCount - 1;
+      while (charIdx > 0 && ch != (char)pgm_read_byte(&allowedChars[charIdx]))
       {
         charIdx--;
       }
@@ -217,6 +242,7 @@ namespace
       {
         Menu::Item &itemMenu = MenuItem::slotList[slotIdx];
         itemMenu.text = slotNameList[slotIdx];
+        itemMenu.isTextInRam = true;
         Slot::getName(slotIdx, slotNameList[slotIdx]);
         itemMenu.prev = (slotIdx == 0) ? nullptr : &MenuItem::slotList[slotIdx - 1];
         itemMenu.next = (slotIdx == Slot::slotsCount - 1) ? nullptr : &MenuItem::slotList[slotIdx + 1];
@@ -291,6 +317,25 @@ namespace
   }
 
   /**
+   * @brief Print menu item text padded with spaces to the specified width
+   *
+   * @param line Vertical line identifier
+   * @param width Width of printed text, characters
+   * @param pItem Menu item to print text
+   */
+  void printItemText(Display::Line line, uint8_t width, const Menu::Item *pItem)
+  {
+    if (pItem->isTextInRam == true)
+    {
+      Display::printString(0, line, width, pItem->text);
+    }
+    else
+    {
+      Display::printString_P(0, line, width, pItem->text);
+    }
+  }
+
+  /**
    * @brief Draw specified menu item
    * Set menu item as current
    *
@@ -303,8 +348,14 @@ namespace
       bool isRootMenu = (pDrawItem->parent == nullptr);
 
       // Show parent header text
-      const char *headerText = isRootMenu ? MainMenu::rootHeaderString : pDrawItem->parent->text;
-      Display::printf(0, Display::Line::Header, "%-16.16s", headerText);
+      if (isRootMenu == true)
+      {
+        MainMenu::showHeader(MainMenu::rootHeaderString);
+      }
+      else
+      {
+        printItemText(Display::Line::Header, MainMenu::headerLengthMax, pDrawItem->parent);
+      }
 
       // Count previous items
       uint8_t prevItemCount = 0;
@@ -327,9 +378,14 @@ namespace
       // Show navigation info
       uint8_t itemIdx = prevItemCount;
       uint8_t itemsCount = prevItemCount + 1 + nextItemCount;
-      Display::printf(0, Display::Line::Navigation,
-                      isRootMenu ? "        %2u/%-2u  ENTER>" : "<BACK   %2u/%-2u  ENTER>",
-                      itemIdx + 1, itemsCount);
+      if (isRootMenu == true)
+      {
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "        %2u/%-2u  ENTER>", itemIdx + 1, itemsCount);
+      }
+      else
+      {
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK   %2u/%-2u  ENTER>", itemIdx + 1, itemsCount);
+      }
 
       // Find the first item on current page
       uint8_t itemOffset = itemIdx % MainMenu::pageItemCount;
@@ -348,11 +404,16 @@ namespace
         if (pItem == pDrawItem)
         {
           Display::setInverted(true);
-          Display::printf(0, line, "%-20.20s", pItem->text);
+        }
+
+        if (pItem != nullptr)
+        {
+          printItemText(line, MainMenu::itemTextLengthMax, pItem);
         }
         else
         {
-          Display::printf(0, line, "%-20.20s", pItem ? pItem->text : "");
+          // Clear the line
+          Display::printString(0, line, MainMenu::itemTextLengthMax, "");
         }
 
         pItem = pItem ? pItem->next : nullptr;
@@ -422,19 +483,19 @@ namespace
         Slot::getSignal(selectedSlotIdx, txSignal);
         if (txSignal == Slot::signalInvalid)
         {
-          Display::printf(0, Display::Line::Header, "%-16.16s", "No signal saved");
-          Display::printf(0, Display::Line::Line_1, "Go to search menu");
-          Display::printf(0, Display::Line::Navigation, "<<EXIT");
+          MainMenu::showHeader(PSTR("No signal saved"));
+          DISPLAY_PRINTF(0, Display::Line::Line_1, "Go to search menu");
+          DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT");
           // Switch to no signal state
           state = State::NoSignal;
         }
         else
         {
-          Display::printf(0, Display::Line::Header, "%-16.16s", "Signal TX");
-          Display::printf(0, Display::Line::Line_1, "Protocol: %02u", txSignal.protocol);
-          Display::printf(0, Display::Line::Line_2, "Value: 0x%02lX", txSignal.value);
-          Display::printf(0, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
-          Display::printf(0, Display::Line::Navigation, "<<EXIT          SEND>");
+          MainMenu::showHeader(PSTR("Signal TX"));
+          DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %02u", txSignal.protocol);
+          DISPLAY_PRINTF(0, Display::Line::Line_2, "Value: 0x%02lX", txSignal.value);
+          DISPLAY_PRINTF(0, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
+          DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT          SEND>");
           // Switch to signal opened state
           state = State::SignalOpened;
         }
@@ -451,8 +512,8 @@ namespace
       if (buttonEvent == Button::Event::PressStart)
       {
         // Update display
-        Display::printf(0, Display::Line::Header, "%-16.16s", "Sending...");
-        Display::printf(0, Display::Line::Navigation, "<<EXIT         SEND>>");
+        MainMenu::showHeader(PSTR("Sending..."));
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT         SEND>>");
         // Switch to sending state
         txCount = 0;
         state = State::Sending;
@@ -465,8 +526,8 @@ namespace
       if (buttonState == Button::State::Released)
       {
         // Update display
-        Display::printf(0, Display::Line::Header, "%-16.16s", "Signal TX");
-        Display::printf(0, Display::Line::Navigation, "<<EXIT          SEND>");
+        MainMenu::showHeader(PSTR("Signal TX"));
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT          SEND>");
         // Switch back to signal opened state
         state = State::SignalOpened;
       }
@@ -475,7 +536,7 @@ namespace
         // Send signal to the radio
         Radio::sendSignal(txSignal);
         txCount++;
-        Display::printf(9, Display::Line::Navigation, "%03u", txCount);
+        DISPLAY_PRINTF(9, Display::Line::Navigation, "%03u", txCount);
       }
     }
 
@@ -524,9 +585,9 @@ namespace
       {
         // Update display
         Display::clear();
-        Display::printf(0, Display::Line::Header, "%-16.16s", "Searching...");
-        Display::printf(0, Display::Line::Line_1, "Please wait");
-        Display::printf(0, Display::Line::Navigation, "<<EXIT");
+        MainMenu::showHeader(PSTR("Searching..."));
+        DISPLAY_PRINTF(0, Display::Line::Line_1, "Please wait");
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT");
         // Enable radio receiver
         Radio::enableReciever();
         // Switch to searching state
@@ -540,7 +601,7 @@ namespace
         // Set signal to current selected slot
         Slot::setSignal(selectedSlotIdx, rxSignal);
         // Update display
-        Display::printf(0, Display::Line::Navigation, "<<EXIT        REPEAT>");
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT        REPEAT>");
         // Switch to saved state
         state = State::Saved;
       }
@@ -563,11 +624,11 @@ namespace
 
         // Update display
         Display::clear();
-        Display::printf(0, Display::Line::Header, "%-16.16s", "Signal RX");
-        Display::printf(0, Display::Line::Line_1, "Protocol: %02u", rxSignal.protocol);
-        Display::printf(0, Display::Line::Line_2, "Value: 0x%02lX", rxSignal.value);
-        Display::printf(0, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
-        Display::printf(0, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
+        MainMenu::showHeader(PSTR("Signal RX"));
+        DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %02u", rxSignal.protocol);
+        DISPLAY_PRINTF(0, Display::Line::Line_2, "Value: 0x%02lX", rxSignal.value);
+        DISPLAY_PRINTF(0, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
 
         // Switch to saved state
         state = State::Found;
@@ -619,10 +680,10 @@ namespace
       {
         // Update display
         Display::clear();
-        Display::printf(0, Display::Line::Header, "%-16.16s", "Edit name");
+        MainMenu::showHeader(PSTR("Edit name"));
         // Copy current slot name
         currentName = MenuItem::slotNameList[selectedSlotIdx];
-        snprintf(newName, sizeof(newName), "%-12s", currentName);
+        snprintf_P(newName, sizeof(newName), PSTR("%-12s"), currentName);
         editCharOffset = 0;
         editCharAllowedIdx = MenuItem::getCharAllowedIdx(newName[editCharOffset]);
         // Switch to refresh state
@@ -674,7 +735,7 @@ namespace
         }
         else
         {
-          editCharAllowedIdx = strlen(MenuItem::allowedChars) - 1;
+          editCharAllowedIdx = MenuItem::allowedCharsCount - 1;
         }
         // Switch to refresh state
         state = State::Refresh;
@@ -684,7 +745,7 @@ namespace
     case Menu::Action::Next:
       if (state == State::WaitInput)
       {
-        if (editCharAllowedIdx < strlen(MenuItem::allowedChars) - 1)
+        if (editCharAllowedIdx < MenuItem::allowedCharsCount - 1)
         {
           editCharAllowedIdx++;
         }
@@ -704,10 +765,10 @@ namespace
         if (isNotEqual == true)
         {
           // Copy new slot name
-          snprintf(currentName, sizeof(MenuItem::slotNameList[0]), "%-12s", newName);
+          snprintf_P(currentName, sizeof(MenuItem::slotNameList[0]), PSTR("%-12s"), newName);
           // Save new slot name on the storage
           Slot::setName(selectedSlotIdx, newName);
-          Display::printf(0, Display::Line::Navigation, "<<EXIT               ");
+          DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT               ");
         }
       }
       break;
@@ -719,15 +780,22 @@ namespace
     if (state == State::Refresh)
     {
       // Update name
-      newName[editCharOffset] = MenuItem::allowedChars[editCharAllowedIdx];
+      newName[editCharOffset] = pgm_read_byte(&MenuItem::allowedChars[editCharAllowedIdx]);
       Display::setSize(Display::Size::Font_8x16, true);
-      Display::printf(0, Display::Line::Line_2, "%s", newName);
+      DISPLAY_PRINTF(0, Display::Line::Line_2, "%s", newName);
       Display::setInverted(true);
-      Display::printf(editCharOffset, Display::Line::Line_2, "%c", newName[editCharOffset]);
+      DISPLAY_PRINTF(editCharOffset, Display::Line::Line_2, "%c", newName[editCharOffset]);
       Display::setSize(Display::Size::Font_6x8, true);
 
       bool isEqual = (strncmp(newName, currentName, strlen(newName)) == 0);
-      Display::printf(0, Display::Line::Navigation, isEqual ? "<<EXIT               " : "<<EXIT         SAVE>>");
+      if (isEqual == true)
+      {
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT               ");
+      }
+      else
+      {
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT         SAVE>>");
+      }
 
       // Switch to wait input state
       state = State::WaitInput;
@@ -774,8 +842,8 @@ namespace
       {
         // Update display
         Display::clear();
-        MainMenu::showSystemInfo("System info");
-        Display::printf(0, Display::Line::Navigation, "<<EXIT");
+        MainMenu::showSystemInfo(PSTR("System info"));
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT");
         lastUpdateTimeMs = millis();
         // Switch to show info state
         state = State::ShowInfo;
@@ -794,7 +862,7 @@ namespace
         lastUpdateTimeMs = currentTimeMs;
 
         uint16_t batteryVoltage = Battery::readVoltage();
-        Display::printf(0, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
+        DISPLAY_PRINTF(0, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
       }
     }
 

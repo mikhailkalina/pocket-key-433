@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <ssd1306.h>
 
@@ -158,15 +159,65 @@ void Display::setSize(Size size, bool isPermanent)
     }
 }
 
+namespace
+{
+    /**
+     * @brief Draw text buffer to the specified position of the display
+     *
+     * @param charOffset Horisontal position offset from the left, characters
+     * @param line Vertical line identifier
+     */
+    void drawBuffer(uint8_t charOffset, Line line)
+    {
+        uint8_t xPos = charOffset * charWidthPix;
+        uint8_t yPos = lineOffsets[(uint8_t)line];
+
+        if (line == Line::Header)
+        {
+            Display::setStyle(Display::Style::Bold);
+            Display::setSize(Display::Size::Font_8x16);
+            xPos += headerOffsetXPix;
+        }
+        else if (line == Line::Navigation)
+        {
+            xPos += navOffsetXPix;
+        }
+        else
+        {
+            xPos += linesOffsetXPix;
+        }
+
+        ssd1306_printFixed(xPos, yPos, buffer, fontStyle);
+
+        if (isInvertedInUse != isInvertedPermanent)
+        {
+            // Return permanent inverted mode in use
+            setInverted(isInvertedPermanent);
+        }
+
+        if (styleInUse != stylePermanent)
+        {
+            // Return permament style back in use
+            setStyle(stylePermanent);
+        }
+
+        if (sizeInUse != sizePermanent)
+        {
+            // Return permament size back in use
+            setSize(sizePermanent);
+        }
+    }
+} // namespace
+
 /**
  * @brief Print formatted string to the specified position of the display
  *
  * @param charOffset Horisontal position offset from the left, characters
  * @param line Vertical line identifier
- * @param format Formatted string
+ * @param format Formatted string located in flash memory
  * @param ... Parameters for formatted string
  */
-void Display::printf(uint8_t charOffset, Line line, const char *format, ...)
+void Display::printf_P(uint8_t charOffset, Line line, const char *format, ...)
 {
     if (charOffset >= lengthMax || line >= Line::Count)
     {
@@ -176,46 +227,62 @@ void Display::printf(uint8_t charOffset, Line line, const char *format, ...)
     va_list args;
 
     va_start(args, format);
-    vsnprintf(buffer, lengthMax + 1, format, args);
+    vsnprintf_P(buffer, lengthMax + 1, format, args);
     va_end(args);
 
-    uint8_t xPos = charOffset * charWidthPix;
-    uint8_t yPos = lineOffsets[(uint8_t)line];
+    drawBuffer(charOffset, line);
+}
 
-    if (line == Line::Header)
+/**
+ * @brief Print string to the specified position of the display
+ * String is truncated and padded with spaces to the specified width
+ *
+ * @param charOffset Horisontal position offset from the left, characters
+ * @param line Vertical line identifier
+ * @param width Width of printed string, characters
+ * @param string String located in RAM
+ */
+void Display::printString(uint8_t charOffset, Line line, uint8_t width, const char *string)
+{
+    if (charOffset >= lengthMax || line >= Line::Count)
     {
-        Display::setStyle(Display::Style::Bold);
-        Display::setSize(Display::Size::Font_8x16);
-        xPos += headerOffsetXPix;
-    }
-    else if (line == Line::Navigation)
-    {
-        xPos += navOffsetXPix;
-    }
-    else
-    {
-        xPos += linesOffsetXPix;
-    }
-
-    ssd1306_printFixed(xPos, yPos, buffer, fontStyle);
-
-    if (isInvertedInUse != isInvertedPermanent)
-    {
-        // Return permanent inverted mode in use
-        setInverted(isInvertedPermanent);
+        return;
     }
 
-    if (styleInUse != stylePermanent)
+    // Copy string truncated and padded with spaces to the specified width
+    width = (width < lengthMax) ? width : lengthMax;
+    uint8_t length = strnlen(string, width);
+    memcpy(buffer, string, length);
+    memset(&buffer[length], ' ', width - length);
+    buffer[width] = '\0';
+
+    drawBuffer(charOffset, line);
+}
+
+/**
+ * @brief Print string to the specified position of the display
+ * String is truncated and padded with spaces to the specified width
+ *
+ * @param charOffset Horisontal position offset from the left, characters
+ * @param line Vertical line identifier
+ * @param width Width of printed string, characters
+ * @param string String located in flash memory
+ */
+void Display::printString_P(uint8_t charOffset, Line line, uint8_t width, const char *string)
+{
+    if (charOffset >= lengthMax || line >= Line::Count)
     {
-        // Return permament style back in use
-        setStyle(stylePermanent);
+        return;
     }
 
-    if (sizeInUse != sizePermanent)
-    {
-        // Return permament size back in use
-        setSize(sizePermanent);
-    }
+    // Copy string from flash memory truncated and padded with spaces to the specified width
+    width = (width < lengthMax) ? width : lengthMax;
+    uint8_t length = strnlen_P(string, width);
+    memcpy_P(buffer, string, length);
+    memset(&buffer[length], ' ', width - length);
+    buffer[width] = '\0';
+
+    drawBuffer(charOffset, line);
 }
 
 /**

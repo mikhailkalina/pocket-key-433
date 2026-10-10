@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <avr/pgmspace.h>
 #include <CRC.h>
 #include <EEPROM.h>
 
@@ -105,7 +106,7 @@ namespace
     {
         // Reset name to default (slot number is limited to 2 digits to fit name length)
         static_assert(slotsCount <= 99, "Slot number should fit 2 digits");
-        snprintf(item.name, sizeof(item.name), "Slot %02d     ", (slotIdx + 1) % 100);
+        snprintf_P(item.name, sizeof(item.name), PSTR("Slot %02d     "), (slotIdx + 1) % 100);
 
         // Invalidate the signal
         item.signal = signalInvalid;
