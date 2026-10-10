@@ -26,6 +26,11 @@ namespace Slot
                     (bitLength == other.bitLength) &&
                     (value == other.value));
         }
+
+        bool operator!=(const Signal &other) const
+        {
+            return !(*this == other);
+        }
     };
 #pragma pack(pop)
 

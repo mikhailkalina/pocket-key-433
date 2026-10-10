@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <CRC.h>
 #include <EEPROM.h>
@@ -29,6 +30,50 @@ namespace
     constexpr uint8_t slotStorageSize = sizeof(SlotItem) + sizeof(uint8_t);
     static_assert(slotStorageSize == 20);
 
+    // CRC-8 parameters, set explicitly to keep storage format independent of CRC library defaults
+    constexpr uint8_t crc8Polynome = 0x07;
+    constexpr uint8_t crc8Initial = 0x00;
+    constexpr uint8_t crc8XorOut = 0x00;
+    constexpr bool crc8ReverseIn = false;
+    constexpr bool crc8ReverseOut = false;
+
+    /**
+     * @brief Calculate slot item CRC-8
+     *
+     * @param item Slot item
+     * @return Slot item CRC-8
+     */
+    uint8_t calcItemCrc8(const SlotItem &item)
+    {
+        return calcCRC8((const uint8_t *)&item, sizeof(item),
+                        crc8Polynome, crc8Initial, crc8XorOut, crc8ReverseIn, crc8ReverseOut);
+    }
+
+    /**
+     * @brief Check slot item data is valid
+     *
+     * @param item Slot item to check
+     * @return true if slot item is valid, false otherwise
+     */
+    bool isValid(const SlotItem &item)
+    {
+        // Name should be non-empty null-terminated string of printable characters
+        size_t nameLength = strnlen(item.name, sizeof(item.name));
+        bool result = (nameLength > 0 && nameLength < sizeof(item.name));
+        for (size_t idx = 0; result == true && idx < nameLength; idx++)
+        {
+            result = (item.name[idx] >= ' ' && item.name[idx] <= '~');
+        }
+
+        // Signal should be invalid or have non-zero protocol and bit length
+        if (result == true && item.signal != signalInvalid)
+        {
+            result = (item.signal.protocol != 0 && item.signal.bitLength != 0);
+        }
+
+        return result;
+    }
+
     /**
      * @brief Save slot item to the storage
      *
@@ -39,7 +84,7 @@ namespace
     {
         int slotAddress = slotIdx * slotStorageSize;
         int crc8Address = slotAddress + sizeof(SlotItem);
-        uint8_t crc8 = calcCRC8((const uint8_t *)&item, sizeof(item));
+        uint8_t crc8 = calcItemCrc8(item);
 
 #ifdef LOG_DEBUG
         Log::printf("Save slot[%u]: \"%s\" %02u 0x%02lX/%u", slotIdx, item.name,
@@ -58,8 +103,9 @@ namespace
      */
     void reset(uint8_t slotIdx, SlotItem &item)
     {
-        // Reset name to default
-        snprintf(item.name, sizeof(item.name), "Slot %02d     ", slotIdx + 1);
+        // Reset name to default (slot number is limited to 2 digits to fit name length)
+        static_assert(slotsCount <= 99, "Slot number should fit 2 digits");
+        snprintf(item.name, sizeof(item.name), "Slot %02d     ", (slotIdx + 1) % 100);
 
         // Invalidate the signal
         item.signal = signalInvalid;
@@ -87,8 +133,7 @@ namespace
         EEPROM.get(slotAddress, item);
         EEPROM.get(crc8Address, crc8);
 
-        uint8_t calcCrc8 = calcCRC8((const uint8_t *)&item, sizeof(item));
-        if (calcCrc8 != crc8)
+        if (calcItemCrc8(item) != crc8 || isValid(item) == false)
         {
             // Reset slot if it isn't valid
             reset(slotIdx, item);
