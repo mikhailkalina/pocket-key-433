@@ -59,7 +59,7 @@ void Display::initialize()
  * @param isInverted true for inverted mode, false for normal
  * @param isPermanent true if set mode is permament, false if temporary
  */
-void Display::setInverted(bool isInverted, bool isPermanent = false)
+void Display::setInverted(bool isInverted, bool isPermanent)
 {
     if (isInvertedInUse != isInverted)
     {

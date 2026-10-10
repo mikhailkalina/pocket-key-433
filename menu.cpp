@@ -8,7 +8,7 @@ namespace
 {
     const Item *navigate(const Item *pItem, Action action)
     {
-        Item *pNewItem = nullptr;
+        const Item *pNewItem = nullptr;
 
         switch (action)
         {

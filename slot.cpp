@@ -167,8 +167,6 @@ void Slot::getName(uint8_t slotIdx, char *name)
         // Set empty name
         name[0] = '\0';
     }
-
-    return name;
 }
 
 /**

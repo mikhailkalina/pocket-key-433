@@ -214,7 +214,7 @@ namespace
       {
         Menu::Item &itemMenu = MenuItem::slotList[slotIdx];
         itemMenu.text = slotNameList[slotIdx];
-        Slot::getName(slotIdx, itemMenu.text);
+        Slot::getName(slotIdx, slotNameList[slotIdx]);
         itemMenu.prev = (slotIdx == 0) ? nullptr : &MenuItem::slotList[slotIdx - 1];
         itemMenu.next = (slotIdx == Slot::slotsCount - 1) ? nullptr : &MenuItem::slotList[slotIdx + 1];
         itemMenu.child = &MenuItem::slotEmulate;
@@ -594,7 +594,7 @@ namespace
     };
 
     static State state = State::Disabled;
-    static const char *currentName = nullptr;
+    static char *currentName = nullptr;
     static char newName[Slot::nameLengthMax + 1];
     static uint8_t editCharOffset;
     static uint8_t editCharAllowedIdx;

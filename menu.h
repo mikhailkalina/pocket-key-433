@@ -45,7 +45,7 @@ namespace Menu
         const Item *child;
         Callback callback;
         int param;
-        const Item *parent;
+        mutable const Item *parent; // Updated during navigation
     };
 
     /**
