@@ -76,7 +76,7 @@ namespace Display
    * @param format Formatted string
    * @param ... Parameters for formatted string
    */
-  void printf(uint8_t charOffset, Line line, const char *format, ...);
+  void printf(uint8_t charOffset, Line line, const char *format, ...) __attribute__((format(printf, 3, 4)));
 
   /**
    * @brief Clear the screen

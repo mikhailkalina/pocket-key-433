@@ -76,7 +76,7 @@ namespace
     {
       Display::printf(0, Display::Line::Header, "%-16.16s", headerString);
       Display::setStyle(Display::Style::Italic);
-      Display::printf(0, Display::Line::Line_1, authorString);
+      Display::printf(0, Display::Line::Line_1, "%s", authorString);
 
       uint16_t batteryVoltage = Battery::readVoltage();
       Display::printf(0, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
@@ -167,7 +167,7 @@ namespace
 
   namespace MenuItem
   {
-    const char allowedChars[] = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXWZabcdefghijklmnopqrstuvwxyz";
+    const char allowedChars[] = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
     // Menu item definitions
     extern Menu::Item slotRoot;
@@ -718,7 +718,7 @@ namespace
       // Update name
       newName[editCharOffset] = MenuItem::allowedChars[editCharAllowedIdx];
       Display::setSize(Display::Size::Font_8x16, true);
-      Display::printf(0, Display::Line::Line_2, newName);
+      Display::printf(0, Display::Line::Line_2, "%s", newName);
       Display::setInverted(true);
       Display::printf(editCharOffset, Display::Line::Line_2, "%c", newName[editCharOffset]);
       Display::setSize(Display::Size::Font_6x8, true);
