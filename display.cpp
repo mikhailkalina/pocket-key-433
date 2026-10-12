@@ -42,6 +42,40 @@ namespace
     uint8_t charWidthPix = textSize6x8CharWidthPix;
     // Maximum length of the text
     uint8_t lengthMax = textSize6x8LengthMax;
+
+    /**
+     * @brief Return vertical pixel mask with the specified rows set
+     *
+     * @param top Top row, bit N is pixel row N
+     * @param bottom Bottom row
+     * @return Pixel mask
+     */
+    constexpr uint16_t pixelRows(uint8_t top, uint8_t bottom)
+    {
+        return (uint16_t)((2UL << bottom) - (1UL << top));
+    }
+
+    // Battery indicator in the top right corner, 2 display pages high:
+    // body outline columns 0..14 with bars inside, tip column 15
+    constexpr uint8_t batteryWidthPix = 16;
+    constexpr uint8_t batteryHeightPix = 16;
+    constexpr uint8_t batteryXPix = 128 - batteryWidthPix;
+    constexpr uint8_t batteryBodyWidthPix = 15;
+    constexpr uint8_t batteryBarOffsetPix = 2; // First bar column, after outline and gap
+    constexpr uint8_t batteryBarWidthPix = 2;
+    constexpr uint8_t batteryBarStepPix = 3; // Bar width and gap after it
+    static_assert(batteryBarOffsetPix + batteryBarsMax * batteryBarStepPix + 1 == batteryBodyWidthPix,
+                  "Battery bars do not fit the body");
+
+    // Pixel rows of battery indicator columns, aligned with the header font capital letters
+    constexpr uint16_t batteryOutlineRows = pixelRows(3, 12);
+    constexpr uint16_t batteryInsideRows = pixelRows(3, 3) | pixelRows(12, 12);
+    constexpr uint16_t batteryBarRows = pixelRows(5, 10);
+    constexpr uint16_t batteryTipRows = pixelRows(6, 9);
+
+    // Current battery indicator bars, batteryBarsHidden if indicator is not shown
+    constexpr uint8_t batteryBarsHidden = 0xFF;
+    uint8_t batteryBars = batteryBarsHidden;
 } // namespace
 
 /**
@@ -209,6 +243,42 @@ namespace
             setSize(sizePermanent);
         }
     }
+
+    /**
+     * @brief Draw battery indicator with current bars
+     */
+    void drawBattery()
+    {
+        // Top display page bytes followed by bottom page bytes
+        uint8_t bitmap[batteryWidthPix * batteryHeightPix / 8];
+
+        for (uint8_t x = 0; x < batteryWidthPix; x++)
+        {
+            uint16_t rows = batteryInsideRows;
+
+            if (x == 0 || x == batteryBodyWidthPix - 1)
+            {
+                rows = batteryOutlineRows;
+            }
+            else if (x >= batteryBodyWidthPix)
+            {
+                rows = batteryTipRows;
+            }
+            else if (x >= batteryBarOffsetPix)
+            {
+                uint8_t barX = x - batteryBarOffsetPix;
+                if (barX / batteryBarStepPix < batteryBars && barX % batteryBarStepPix < batteryBarWidthPix)
+                {
+                    rows |= batteryBarRows;
+                }
+            }
+
+            bitmap[x] = (uint8_t)rows;
+            bitmap[batteryWidthPix + x] = (uint8_t)(rows >> 8);
+        }
+
+        ssd1306_drawBuffer(batteryXPix, 0, batteryWidthPix, batteryHeightPix, bitmap);
+    }
 } // namespace
 
 /**
@@ -289,8 +359,35 @@ void Display::printString_P(uint8_t charOffset, Line line, uint8_t width, const 
 
 /**
  * @brief Clear the screen
+ * Battery indicator is restored if shown
  */
 void Display::clear()
 {
     ssd1306_clearScreen();
+
+    if (batteryBars != batteryBarsHidden)
+    {
+        drawBattery();
+    }
+}
+
+/**
+ * @brief Show battery indicator in the top right corner of the screen
+ * Header text must not exceed 13 characters to leave room for the indicator
+ *
+ * @param bars Number of filled bars, up to batteryBarsMax
+ */
+void Display::showBattery(uint8_t bars)
+{
+    if (bars > batteryBarsMax)
+    {
+        bars = batteryBarsMax;
+    }
+
+    // Redraw on change only
+    if (bars != batteryBars)
+    {
+        batteryBars = bars;
+        drawBattery();
+    }
 }

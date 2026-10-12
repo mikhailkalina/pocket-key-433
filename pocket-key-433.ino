@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <RCSwitch.h>
 
+#include "battery.h"
 #include "button.h"
 #include "display.h"
 #include "log.h"
@@ -20,41 +21,13 @@ namespace
     constexpr uint8_t minor = 6;
   } // namespace FwVersion
 
-  namespace Battery
-  {
-    constexpr uint8_t inputPin = A0;
-
-    constexpr uint16_t voltageMax = 5000;  // millivolts
-    constexpr uint16_t rawValueMax = 1023; // bits
-
-    /**
-     * @brief Initialize battery voltage readings
-     */
-    void initialize()
-    {
-      pinMode(inputPin, INPUT);
-    }
-
-    /**
-     * @brief Read battery voltage
-     *
-     * @return Current battery voltage
-     */
-    uint16_t readVoltage()
-    {
-      uint16_t rawValue = analogRead(inputPin);
-
-      // Calculate voltage from raw reading
-      uint16_t voltage = (uint32_t)rawValue * voltageMax / rawValueMax;
-
-      return voltage;
-    }
-  } // namespace Battery
-
   namespace MainMenu
   {
     constexpr unsigned long welcomeTimeMs = 1000;
     constexpr unsigned long systemInfoUpdatePeriodMs = 1000;
+    constexpr unsigned long chargingAnimationStepMs = 500;
+
+    static_assert(Battery::levelMax == Display::batteryBarsMax, "Battery level should match indicator bars");
 
     constexpr uint8_t pageItemCount = 5;
     constexpr Display::Line displayLines[] = {
@@ -67,11 +40,13 @@ namespace
     static_assert(sizeof(displayLines) / sizeof(*displayLines) == pageItemCount);
 
     // Maximum text lengths
-    constexpr uint8_t headerLengthMax = 16;
+    constexpr uint8_t headerLineLength = 16; // Header characters across the screen width
+    constexpr uint8_t headerLengthMax = 13;  // Leaves room for the battery indicator
     constexpr uint8_t itemTextLengthMax = 20;
 
-    // String for root menu header
-    const char rootHeaderString[] PROGMEM = "Pocket Key";
+    // Header strings for welcome screen and root menu
+    const char welcomeHeaderString[] PROGMEM = "Pocket Key";
+    const char rootHeaderString[] PROGMEM = "Main menu";
     const char authorString[] PROGMEM = "inspired by mr drone";
 
     /**
@@ -92,7 +67,12 @@ namespace
     void showHeaderCentered(const char *headerString)
     {
       uint8_t length = strnlen_P(headerString, headerLengthMax);
-      uint8_t offset = (headerLengthMax - length) / 2;
+      uint8_t offset = (headerLineLength - length) / 2;
+      if (offset > headerLengthMax - length)
+      {
+        // Shift to the left to not overlap the battery indicator
+        offset = headerLengthMax - length;
+      }
       Display::printString_P(offset, Display::Line::Header, headerLengthMax - offset, headerString);
     }
 
@@ -104,11 +84,57 @@ namespace
       Display::setStyle(Display::Style::Italic);
       Display::printString_P(0, Display::Line::Line_1, itemTextLengthMax, authorString);
 
-      uint16_t batteryVoltage = Battery::readVoltage();
+      uint16_t batteryVoltage = Battery::getVoltage();
       DISPLAY_PRINTF(0, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
       DISPLAY_PRINTF(0, Display::Line::Line_4, "Firmware: v%u.%u", FwVersion::major, FwVersion::minor);
     }
-  } // namespace Menu
+
+    /**
+     * @brief Update battery indicator in the top right corner
+     * While charging, bars are filled one by one from the current level to full.
+     * Level change is applied at the start of the next animation cycle to keep the animation steady
+     */
+    void updateBatteryIndicator()
+    {
+      static bool isAnimating = false;
+      static uint8_t startBars = 0;
+      static uint8_t animationStep = 0;
+      static unsigned long animationStepTimeMs = 0;
+
+      uint8_t bars = Battery::getLevel();
+
+      if (Battery::isCharging() == true)
+      {
+        unsigned long currentTimeMs = millis();
+        if (isAnimating == false || currentTimeMs - animationStepTimeMs >= chargingAnimationStepMs)
+        {
+          animationStepTimeMs = currentTimeMs;
+
+          if (isAnimating == true && startBars + animationStep < Display::batteryBarsMax)
+          {
+            // Fill the next bar
+            animationStep++;
+          }
+          else
+          {
+            // Start a new cycle from the current level,
+            // one bar below full to keep the last bar blinking on full battery
+            startBars = (bars < Display::batteryBarsMax) ? bars : Display::batteryBarsMax - 1;
+            animationStep = 0;
+            isAnimating = true;
+          }
+        }
+
+        bars = startBars + animationStep;
+      }
+      else
+      {
+        isAnimating = false;
+      }
+
+      Display::showBattery(bars);
+    }
+  } // namespace MainMenu
 
   namespace Radio
   {
@@ -595,7 +621,7 @@ namespace
         Slot::getSignal(param, txSignal);
         if (txSignal == Slot::signalInvalid)
         {
-          MainMenu::showHeader(PSTR("No signal saved"));
+          MainMenu::showHeader(PSTR("No signal"));
           DISPLAY_PRINTF(0, Display::Line::Line_1, "Go to search menu");
           // Switch to no signal state
           state = State::NoSignal;
@@ -684,7 +710,7 @@ namespace
         Slot::getSignal(selectedSlotIdx, txSignal);
         if (txSignal == Slot::signalInvalid)
         {
-          MainMenu::showHeader(PSTR("No signal saved"));
+          MainMenu::showHeader(PSTR("No signal"));
           DISPLAY_PRINTF(0, Display::Line::Line_1, "Go to search menu");
           DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK");
           // Switch to no signal state
@@ -1059,7 +1085,7 @@ namespace
       {
         lastUpdateTimeMs = currentTimeMs;
 
-        uint16_t batteryVoltage = Battery::readVoltage();
+        uint16_t batteryVoltage = Battery::getVoltage();
         DISPLAY_PRINTF(0, Display::Line::Line_3, "Battery: %4umV", batteryVoltage);
       }
     }
@@ -1081,12 +1107,12 @@ void setup()
   Log::printf("Firmware: v%d.%d", FwVersion::major, FwVersion::minor);
 #endif // LOG_DEBUG
 
-  // Initialize battery voltage readings
+  // Initialize battery voltage and charging status readings
   Battery::initialize();
 
 #ifdef LOG_DEBUG
   // Log battery info
-  uint16_t batteryVoltage = Battery::readVoltage();
+  uint16_t batteryVoltage = Battery::getVoltage();
   Log::printf("Battery: %4u", batteryVoltage);
 #endif // LOG_DEBUG
 
@@ -1094,7 +1120,7 @@ void setup()
   Display::initialize();
 
   // Show welcome screen
-  MainMenu::showHeaderCentered(MainMenu::rootHeaderString);
+  MainMenu::showHeaderCentered(MainMenu::welcomeHeaderString);
   MainMenu::showSystemInfo();
   unsigned long welcomeStartTimeMs = millis();
 
@@ -1149,4 +1175,8 @@ void loop()
     // Draw new menu
     drawMenu(pCurrentMenu);
   }
+
+  // Update battery readings and its indicator
+  Battery::process();
+  MainMenu::updateBatteryIndicator();
 }

@@ -41,6 +41,9 @@ namespace Display
     Count, // should be the last one
   };
 
+  // Number of bars in the battery indicator
+  constexpr uint8_t batteryBarsMax = 4;
+
   /**
    * @brief Initialize display
    */
@@ -113,8 +116,17 @@ namespace Display
 
   /**
    * @brief Clear the screen
+   * Battery indicator is restored if shown
    */
   void clear();
+
+  /**
+   * @brief Show battery indicator in the top right corner of the screen
+   * Header text must not exceed 13 characters to leave room for the indicator
+   *
+   * @param bars Number of filled bars, up to batteryBarsMax
+   */
+  void showBattery(uint8_t bars);
 } // namespace Display
 
 /**
