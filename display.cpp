@@ -169,23 +169,25 @@ namespace
      */
     void drawBuffer(uint8_t charOffset, Line line)
     {
-        uint8_t xPos = charOffset * charWidthPix;
+        uint8_t xPos = 0;
         uint8_t yPos = lineOffsets[(uint8_t)line];
 
         if (line == Line::Header)
         {
-            Display::setStyle(Display::Style::Bold);
             Display::setSize(Display::Size::Font_8x16);
-            xPos += headerOffsetXPix;
+            xPos = headerOffsetXPix;
         }
         else if (line == Line::Navigation)
         {
-            xPos += navOffsetXPix;
+            xPos = navOffsetXPix;
         }
         else
         {
-            xPos += linesOffsetXPix;
+            xPos = linesOffsetXPix;
         }
+
+        // Character offset is calculated after header font size is applied
+        xPos += charOffset * charWidthPix;
 
         ssd1306_printFixed(xPos, yPos, buffer, fontStyle);
 
