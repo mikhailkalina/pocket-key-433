@@ -343,11 +343,13 @@ namespace
         itemMenu.child = &MenuItem::slotEmulate;
         itemMenu.callback = slotItemCallback;
         itemMenu.param = slotIdx;
+        // Slots list is shown on startup, so set parent to get back to the root menu
+        itemMenu.parent = &MenuItem::slotRoot;
       }
     }
   } // namespace MenuItem
 
-  const Menu::Item *pCurrentMenu = &MenuItem::slotRoot;
+  const Menu::Item *pCurrentMenu = &MenuItem::slotList[0];
   uint8_t selectedSlotIdx = Slot::invalidIdx;
 
   // Buffer large enough for the longest protocol label (e.g. "AN-Motors")
