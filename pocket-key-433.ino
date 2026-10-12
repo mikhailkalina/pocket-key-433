@@ -53,7 +53,7 @@ namespace
 
   namespace MainMenu
   {
-    constexpr unsigned long welcomeTimeMs = 3000;
+    constexpr unsigned long welcomeTimeMs = 1000;
     constexpr unsigned long systemInfoUpdatePeriodMs = 1000;
 
     constexpr uint8_t pageItemCount = 5;
@@ -85,13 +85,22 @@ namespace
     }
 
     /**
-     * @brief Show welcome screen
+     * @brief Show header text centered horizontally
      *
      * @param headerString Header text located in flash memory
      */
-    void showSystemInfo(const char *headerString)
+    void showHeaderCentered(const char *headerString)
     {
-      showHeader(headerString);
+      uint8_t length = strnlen_P(headerString, headerLengthMax);
+      uint8_t offset = (headerLengthMax - length) / 2;
+      Display::printString_P(offset, Display::Line::Header, headerLengthMax - offset, headerString);
+    }
+
+    /**
+     * @brief Show system information below the header
+     */
+    void showSystemInfo()
+    {
       Display::setStyle(Display::Style::Italic);
       Display::printString_P(0, Display::Line::Line_1, itemTextLengthMax, authorString);
 
@@ -956,7 +965,8 @@ namespace
       {
         // Update display
         Display::clear();
-        MainMenu::showSystemInfo(PSTR("System info"));
+        MainMenu::showHeader(PSTR("System info"));
+        MainMenu::showSystemInfo();
         DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT");
         lastUpdateTimeMs = millis();
         // Switch to show info state
@@ -1010,7 +1020,8 @@ void setup()
   Display::initialize();
 
   // Show welcome screen
-  MainMenu::showSystemInfo(MainMenu::rootHeaderString);
+  MainMenu::showHeaderCentered(MainMenu::rootHeaderString);
+  MainMenu::showSystemInfo();
   unsigned long welcomeStartTimeMs = millis();
 
   // Initialize buttons
