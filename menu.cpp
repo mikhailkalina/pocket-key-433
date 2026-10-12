@@ -6,6 +6,9 @@ using namespace Menu;
 
 namespace
 {
+    // Menu item's functionality was active on the previous processing
+    bool isFunctionActive = false;
+
     const Item *navigate(const Item *pItem, Action action)
     {
         const Item *pNewItem = nullptr;
@@ -60,7 +63,7 @@ namespace
  *
  * @param pItem Current menu item
  * @param action New action
- * @return New menu item if selected, nullptr otherwise
+ * @return New menu item if selected, current item if its functionality finished, nullptr otherwise
  */
 const Item *Menu::process(const Item *pItem, Action action)
 {
@@ -76,7 +79,17 @@ const Item *Menu::process(const Item *pItem, Action action)
             functionState = pItem->callback(action, pItem->param);
         }
 
-        if (functionState == FunctionState::Inactive)
+        if (functionState == FunctionState::Active)
+        {
+            isFunctionActive = true;
+        }
+        else if (isFunctionActive == true)
+        {
+            // Functionality just finished - stay on the item instead of navigating with the same action
+            isFunctionActive = false;
+            pNewItem = pItem;
+        }
+        else
         {
             // Navigate through the menu according to the action
             pNewItem = navigate(pItem, action);

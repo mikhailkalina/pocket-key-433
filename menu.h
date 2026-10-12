@@ -56,7 +56,7 @@ namespace Menu
      *
      * @param pItem Current menu item
      * @param action New action
-     * @return New menu item if selected, nullptr otherwise
+     * @return New menu item if selected, current item if its functionality finished, nullptr otherwise
      */
     const Item *process(const Item *pItem, Action action);
 } // namespace Menu

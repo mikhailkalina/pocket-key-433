@@ -586,7 +586,7 @@ namespace
     // Handle new action
     switch (action)
     {
-    case Menu::Action::Exit:
+    case Menu::Action::Back:
       if (state != State::Disabled)
       {
         Display::clear();
@@ -606,7 +606,7 @@ namespace
         {
           MainMenu::showHeader(PSTR("No signal saved"));
           DISPLAY_PRINTF(0, Display::Line::Line_1, "Go to search menu");
-          DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT");
+          DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK");
           // Switch to no signal state
           state = State::NoSignal;
         }
@@ -618,7 +618,7 @@ namespace
           DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %s", protocolLabel);
           DISPLAY_PRINTF(0, Display::Line::Line_2, "Value: 0x%02lX", txSignal.value);
           DISPLAY_PRINTF(0, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
-          DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT          SEND>");
+          DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK           SEND>");
           // Switch to signal opened state
           state = State::SignalOpened;
         }
@@ -636,7 +636,7 @@ namespace
       {
         // Update display
         MainMenu::showHeader(PSTR("Sending..."));
-        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT         SEND>>");
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK          SEND>>");
         // Switch to sending state
         txCount = 0;
         state = State::Sending;
@@ -650,7 +650,7 @@ namespace
       {
         // Update display
         MainMenu::showHeader(PSTR("Signal TX"));
-        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT          SEND>");
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK           SEND>");
         // Switch back to signal opened state
         state = State::SignalOpened;
       }
@@ -692,7 +692,7 @@ namespace
     // Handle new action
     switch (action)
     {
-    case Menu::Action::Exit:
+    case Menu::Action::Back:
       if (state != State::Disabled)
       {
         Display::clear();
@@ -710,7 +710,7 @@ namespace
         Display::clear();
         MainMenu::showHeader(PSTR("Searching..."));
         DISPLAY_PRINTF(0, Display::Line::Line_1, "Please wait");
-        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT");
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK");
         // Enable radio receiver
         Radio::enableReciever();
         // Switch to searching state
@@ -724,7 +724,7 @@ namespace
         // Set signal to current selected slot
         Slot::setSignal(selectedSlotIdx, rxSignal);
         // Update display
-        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT        REPEAT>");
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK         REPEAT>");
         // Switch to saved state
         state = State::Saved;
       }
@@ -753,7 +753,7 @@ namespace
         DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %s", protocolLabel);
         DISPLAY_PRINTF(0, Display::Line::Line_2, "Value: 0x%02lX", rxSignal.value);
         DISPLAY_PRINTF(0, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
-        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT REPEAT>/SAVE>>");
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK  REPEAT>/SAVE>>");
 
         // Switch to saved state
         state = State::Found;
@@ -953,7 +953,7 @@ namespace
     // Handle new action
     switch (action)
     {
-    case Menu::Action::Exit:
+    case Menu::Action::Back:
       if (state != State::Disabled)
       {
         Display::clear();
@@ -969,7 +969,7 @@ namespace
         Display::clear();
         MainMenu::showHeader(PSTR("System info"));
         MainMenu::showSystemInfo();
-        DISPLAY_PRINTF(0, Display::Line::Navigation, "<<EXIT");
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK");
         lastUpdateTimeMs = millis();
         // Switch to show info state
         state = State::ShowInfo;
