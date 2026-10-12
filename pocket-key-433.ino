@@ -18,7 +18,7 @@ namespace
   namespace FwVersion
   {
     constexpr uint8_t major = 0;
-    constexpr uint8_t minor = 6;
+    constexpr uint8_t minor = 7;
   } // namespace FwVersion
 
   namespace MainMenu
