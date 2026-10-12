@@ -378,6 +378,20 @@ namespace
   }
 
   /**
+   * @brief Show signal parameters
+   *
+   * @param signal Signal to show
+   */
+  void showSignal(const Slot::Signal &signal)
+  {
+    char protocolLabel[protocolLabelSize];
+    getProtocolLabel(signal.protocol, protocolLabel);
+    DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %s", protocolLabel);
+    DISPLAY_PRINTF(0, Display::Line::Line_2, "Value: 0x%02lX", signal.value);
+    DISPLAY_PRINTF(0, Display::Line::Line_3, "Bits: %2u", signal.bitLength);
+  }
+
+  /**
    * @brief Return menu action according to the button events
    *
    * @param buttonId Button identifier caused the event
@@ -552,12 +566,78 @@ namespace
    */
   Menu::FunctionState slotItemCallback(Menu::Action action, int param)
   {
-    Menu::FunctionState functionState = Menu::FunctionState::Inactive;
-
-    if (action == Menu::Action::Enter)
+    enum class State : uint8_t
     {
-      selectedSlotIdx = param;
+      Disabled,
+      NoSignal,
+      Sending,
+    };
+
+    static State state = State::Disabled;
+    static Slot::Signal txSignal = Slot::signalInvalid;
+    static uint16_t txCount = 0;
+
+    // Handle new action
+    switch (action)
+    {
+    case Menu::Action::Enter:
+      if (state == State::Disabled)
+      {
+        selectedSlotIdx = param;
+      }
+      break;
+
+    case Menu::Action::Set:
+      if (state == State::Disabled)
+      {
+        // Quick send of the slot signal while ENTER is held
+        Display::clear();
+        Slot::getSignal(param, txSignal);
+        if (txSignal == Slot::signalInvalid)
+        {
+          MainMenu::showHeader(PSTR("No signal saved"));
+          DISPLAY_PRINTF(0, Display::Line::Line_1, "Go to search menu");
+          // Switch to no signal state
+          state = State::NoSignal;
+        }
+        else
+        {
+          MainMenu::showHeader(PSTR("Sending..."));
+          showSignal(txSignal);
+          DISPLAY_PRINTF(0, Display::Line::Navigation, "               SEND>>");
+          // Switch to sending state
+          txCount = 0;
+          state = State::Sending;
+        }
+      }
+      break;
+
+    default:
+      break;
     }
+
+    if (state != State::Disabled)
+    {
+      Button::State buttonState = Button::getState(Button::Id::Right);
+      if (buttonState == Button::State::Released)
+      {
+        // Return to the slots list
+        Display::clear();
+        txSignal = Slot::signalInvalid;
+        // Switch to disabled state
+        state = State::Disabled;
+      }
+      else if (state == State::Sending)
+      {
+        // Send signal to the radio
+        Radio::sendSignal(txSignal);
+        txCount++;
+        DISPLAY_PRINTF(9, Display::Line::Navigation, "%03u", txCount);
+      }
+    }
+
+    Menu::FunctionState functionState = (state == State::Disabled) ? Menu::FunctionState::Inactive
+                                                                   : Menu::FunctionState::Active;
 
     return functionState;
   }
@@ -613,11 +693,7 @@ namespace
         else
         {
           MainMenu::showHeader(PSTR("Signal TX"));
-          char protocolLabel[protocolLabelSize];
-          getProtocolLabel(txSignal.protocol, protocolLabel);
-          DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %s", protocolLabel);
-          DISPLAY_PRINTF(0, Display::Line::Line_2, "Value: 0x%02lX", txSignal.value);
-          DISPLAY_PRINTF(0, Display::Line::Line_3, "Bits: %2u", txSignal.bitLength);
+          showSignal(txSignal);
           DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK           SEND>");
           // Switch to signal opened state
           state = State::SignalOpened;
@@ -748,11 +824,7 @@ namespace
         // Update display
         Display::clear();
         MainMenu::showHeader(PSTR("Signal RX"));
-        char protocolLabel[protocolLabelSize];
-        getProtocolLabel(rxSignal.protocol, protocolLabel);
-        DISPLAY_PRINTF(0, Display::Line::Line_1, "Protocol: %s", protocolLabel);
-        DISPLAY_PRINTF(0, Display::Line::Line_2, "Value: 0x%02lX", rxSignal.value);
-        DISPLAY_PRINTF(0, Display::Line::Line_3, "Bits: %2u", rxSignal.bitLength);
+        showSignal(rxSignal);
         DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK  REPEAT>/SAVE>>");
 
         // Switch to saved state
