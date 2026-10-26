@@ -8,7 +8,10 @@
 #include "display.h"
 #include "log.h"
 #include "menu.h"
+#include "power.h"
 #include "rc_custom.h"
+#include "settings.h"
+#include "sleep.h"
 #include "slot.h"
 
 // #define LOG_DEBUG // Uncomment to enable log printing
@@ -144,6 +147,8 @@ namespace
     constexpr uint8_t rxInterrupt = 0;
 
     RCSwitch rcSwitch = RCSwitch();
+    bool receiverEnabled = false;
+    bool transmitterEnabled = false;
 
     // Receiver backends. Both use the same RX interrupt, so only one is active
     // at a time; the search alternates between them to find any protocol.
@@ -165,6 +170,7 @@ namespace
     void initialize()
     {
       pinMode(rxPin, INPUT);
+      digitalWrite(txPin, LOW);
       pinMode(txPin, OUTPUT);
 
       // Setup transmitter on TX pin
@@ -220,6 +226,11 @@ namespace
      */
     inline void enableReciever()
     {
+      if (!receiverEnabled)
+      {
+        Power::setReceiver(true);
+        receiverEnabled = true;
+      }
       startRxBackend(RxBackend::RcSwitch);
     }
 
@@ -228,7 +239,36 @@ namespace
      */
     inline void disableReciever()
     {
-      stopRxBackend();
+      if (receiverEnabled)
+      {
+        stopRxBackend();
+        pinMode(rxPin, INPUT);
+        Power::setReceiver(false);
+        receiverEnabled = false;
+      }
+    }
+
+    /**
+     * @brief Power the transmitter before sending the first signal
+     */
+    void enableTransmitter()
+    {
+      if (!transmitterEnabled)
+      {
+        digitalWrite(txPin, LOW);
+        Power::setTransmitter(true);
+        transmitterEnabled = true;
+      }
+    }
+
+    /**
+     * @brief Drive TX data LOW and remove transmitter power
+     */
+    void disableTransmitter()
+    {
+      digitalWrite(txPin, LOW);
+      Power::setTransmitter(false);
+      transmitterEnabled = false;
     }
 
     /**
@@ -301,6 +341,7 @@ namespace
   Menu::FunctionState slotSearchCallback(Menu::Action action, int param);
   Menu::FunctionState slotEditNameCallback(Menu::Action action, int param);
   Menu::FunctionState systemCallback(Menu::Action action, int param);
+  Menu::FunctionState autoSleepCallback(Menu::Action action, int param);
 
   namespace MenuItem
   {
@@ -314,6 +355,7 @@ namespace
     const char slotSearchText[] PROGMEM = "Search";
     const char slotEditNameText[] PROGMEM = "Edit name";
     const char systemText[] PROGMEM = "System";
+    const char autoSleepText[] PROGMEM = "Auto sleep";
 
     // Menu item definitions
     extern Menu::Item slotRoot;
@@ -323,6 +365,7 @@ namespace
     extern Menu::Item slotEditName;
     extern Menu::Item settings;
     extern Menu::Item system;
+    extern Menu::Item autoSleep;
 
     // Menu item fields: text, prev, next, child, callback, param, parent, isTextInRam
 
@@ -340,7 +383,8 @@ namespace
     Menu::Item slotEditName = {slotEditNameText, &slotSearch, nullptr, nullptr, slotEditNameCallback, 0, nullptr, false};
 
     // Settings menu
-    Menu::Item system = {systemText, nullptr, nullptr, nullptr, systemCallback, 0, nullptr, false};
+    Menu::Item system = {systemText, nullptr, &autoSleep, nullptr, systemCallback, 0, nullptr, false};
+    Menu::Item autoSleep = {autoSleepText, &system, nullptr, nullptr, autoSleepCallback, 0, nullptr, false};
 
     uint8_t getCharAllowedIdx(char ch)
     {
@@ -377,6 +421,7 @@ namespace
 
   const Menu::Item *pCurrentMenu = &MenuItem::slotList[0];
   uint8_t selectedSlotIdx = Slot::invalidIdx;
+  unsigned long lastActivityTimeMs = 0;
 
   // Buffer large enough for the longest protocol label (e.g. "AN-Motors")
   constexpr uint8_t protocolLabelSize = 10;
@@ -541,7 +586,7 @@ namespace
       uint8_t itemsCount = prevItemCount + 1 + nextItemCount;
       if (isRootMenu == true)
       {
-        DISPLAY_PRINTF(0, Display::Line::Navigation, "        %2u/%-2u  ENTER>", itemIdx + 1, itemsCount);
+        DISPLAY_PRINTF(0, Display::Line::Navigation, "<SLEEP  %2u/%-2u  ENTER>", itemIdx + 1, itemsCount);
       }
       else
       {
@@ -633,6 +678,7 @@ namespace
           DISPLAY_PRINTF(0, Display::Line::Navigation, "               SEND>>");
           // Switch to sending state
           txCount = 0;
+          Radio::enableTransmitter();
           state = State::Sending;
         }
       }
@@ -649,6 +695,7 @@ namespace
       {
         // Return to the slots list
         Display::clear();
+        Radio::disableTransmitter();
         txSignal = Slot::signalInvalid;
         // Switch to disabled state
         state = State::Disabled;
@@ -696,6 +743,7 @@ namespace
       if (state != State::Disabled)
       {
         Display::clear();
+        Radio::disableTransmitter();
         txSignal = Slot::signalInvalid;
         // Switch to disabled state
         state = State::Disabled;
@@ -741,6 +789,7 @@ namespace
         DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK          SEND>>");
         // Switch to sending state
         txCount = 0;
+        Radio::enableTransmitter();
         state = State::Sending;
       }
     }
@@ -751,6 +800,7 @@ namespace
       if (buttonState == Button::State::Released)
       {
         // Update display
+        Radio::disableTransmitter();
         MainMenu::showHeader(PSTR("Signal TX"));
         DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK           SEND>");
         // Switch back to signal opened state
@@ -1095,10 +1145,122 @@ namespace
 
     return functionState;
   }
+
+  /**
+   * @brief Auto-sleep setting menu item's functionality callback
+   *
+   * @param action New menu action
+   * @param param Menu item's parameter (unused)
+   * @return Current menu item's function state
+   */
+  Menu::FunctionState autoSleepCallback(Menu::Action action, int /* param */)
+  {
+    static bool editing = false;
+    static uint8_t draftOption = 0;
+    bool refresh = false;
+
+    if (!editing && action == Menu::Action::Enter)
+    {
+      draftOption = Settings::getSleepOption();
+      editing = true;
+      Display::clear();
+      MainMenu::showHeader(PSTR("Auto sleep"));
+      DISPLAY_PRINTF(0, Display::Line::Line_4, "UP/DOWN: change");
+      DISPLAY_PRINTF(0, Display::Line::Navigation, "<BACK         SAVE>>");
+      refresh = true;
+    }
+    else if (editing)
+    {
+      switch (action)
+      {
+      case Menu::Action::Prev:
+        if (draftOption + 1 < Settings::sleepOptionCount)
+        {
+          draftOption++;
+          refresh = true;
+        }
+        break;
+      case Menu::Action::Next:
+        if (draftOption > 0)
+        {
+          draftOption--;
+          refresh = true;
+        }
+        break;
+      case Menu::Action::Set:
+        Settings::setSleepOption(draftOption);
+        DISPLAY_PRINTF(0, Display::Line::Line_5, "Saved");
+        break;
+      case Menu::Action::Back:
+        editing = false;
+        Display::clear();
+        break;
+      default:
+        break;
+      }
+    }
+
+    if (refresh)
+    {
+      if (draftOption == 0)
+      {
+        DISPLAY_PRINTF(0, Display::Line::Line_2, "Sleep: Off       ");
+      }
+      else if (draftOption <= 6)
+      {
+        DISPLAY_PRINTF(0, Display::Line::Line_2, "Sleep: %2u sec    ", draftOption * 10);
+      }
+      else
+      {
+        DISPLAY_PRINTF(0, Display::Line::Line_2, "Sleep: %2u min    ", draftOption - 5);
+      }
+      DISPLAY_PRINTF(0, Display::Line::Line_5, "                 ");
+    }
+
+    return editing ? Menu::FunctionState::Active : Menu::FunctionState::Inactive;
+  }
+
+  /**
+   * @brief Power down peripherals, sleep until a wake source, and restore the menu
+   *
+   * Does nothing while the charger status pin is active.
+   */
+  void enterSleep()
+  {
+    // The charger signal is checked again here to cover manual sleep and
+    // a charger connection just before the sleep transition.
+    if (Battery::isChargeSignalActive())
+    {
+      return;
+    }
+
+    // Power down peripherals
+    Radio::disableReciever();
+    Radio::disableTransmitter();
+    Display::releaseBus();
+    Power::setDisplay(false);
+
+    // Sleep until a wake source is detected (button press or charger connection)
+    Sleep::untilWakeSource();
+
+    // Restore the menu after wakeup
+    Power::setDisplay(true);
+    Display::initialize();
+    MainMenu::updateBatteryIndicator();
+    drawMenu(pCurrentMenu);
+
+    // Ignore any button presses that occurred during sleep
+    Button::ignoreUntilReleased();
+    // Reset inactivity timer after wakeup to avoid immediate sleep
+    lastActivityTimeMs = millis();
+  }
 } // namespace
 
 void setup()
 {
+  // Define the supply controls before initializing the powered modules.
+  Power::initialize();
+
   // Initialize serial port for logs
   Serial.begin(115200);
 
@@ -1109,6 +1271,7 @@ void setup()
 
   // Initialize battery voltage and charging status readings
   Battery::initialize();
+  Settings::initialize();
 
 #ifdef LOG_DEBUG
   // Log battery info
@@ -1117,6 +1280,7 @@ void setup()
 #endif // LOG_DEBUG
 
   // Initialize display
+  Power::setDisplay(true);
   Display::initialize();
 
   // Show welcome screen
@@ -1144,6 +1308,7 @@ void setup()
 
   // Draw current menu initially
   drawMenu(pCurrentMenu);
+  lastActivityTimeMs = millis();
 }
 
 void loop()
@@ -1151,6 +1316,7 @@ void loop()
   Button::Id buttonId = Button::process();
   if (buttonId != Button::Id::None)
   {
+    lastActivityTimeMs = millis();
 #ifdef LOG_DEBUG
     // Enum values are cast to unsigned int, as 1-byte enum is passed through variadic arguments as is
     Log::printf("UP:%u DOWN:%u LEFT:%u RIGHT:%u",
@@ -1163,6 +1329,13 @@ void loop()
 
   // Get menu action according to the button event
   Menu::Action menuAction = getMenuAction(buttonId);
+
+  // LEFT on the root menu is the dedicated manual sleep command.
+  if (menuAction == Menu::Action::Back && pCurrentMenu->parent == nullptr)
+  {
+    enterSleep();
+    return;
+  }
 
   const Menu::Item *pNewMenu = Menu::process(pCurrentMenu, menuAction);
   if (pNewMenu != nullptr)
@@ -1179,4 +1352,19 @@ void loop()
   // Update battery readings and its indicator
   Battery::process();
   MainMenu::updateBatteryIndicator();
+
+  if (Battery::isChargeSignalActive())
+  {
+    // Keep the display awake throughout charging and start a full inactivity
+    // period when the charger signal becomes inactive.
+    lastActivityTimeMs = millis();
+    return;
+  }
+
+  const uint16_t sleepSeconds = Settings::getSleepSeconds();
+  if (sleepSeconds != 0 && !Menu::isFunctionActive() && !Button::anyPressed() &&
+      millis() - lastActivityTimeMs >= (unsigned long)sleepSeconds * 1000UL)
+  {
+    enterSleep();
+  }
 }

@@ -66,4 +66,16 @@ namespace Button
    * @return Button detected event
    */
   Event getEvent(Id id);
+
+  /**
+   * @brief Check raw button levels before entering sleep
+   *
+   * @return true if any button is currently pressed
+   */
+  bool anyPressed();
+
+  /**
+   * @brief Ignore the wake press until all buttons have been released and debounced
+   */
+  void ignoreUntilReleased();
 } // namespace Button

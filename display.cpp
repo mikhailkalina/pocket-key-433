@@ -6,6 +6,8 @@
 #include <string.h>
 
 #include <ssd1306.h>
+#include <Arduino.h>
+#include <avr/io.h>
 
 using namespace Display;
 
@@ -86,6 +88,28 @@ void Display::initialize()
     ssd1306_128x64_i2c_init();
     ssd1306_clearScreen();
     ssd1306_setFixedFont(ssd1306xled_font6x8);
+    isInvertedPermanent = false;
+    isInvertedInUse = false;
+    stylePermanent = Style::Normal;
+    styleInUse = Style::Normal;
+    sizePermanent = Size::Font_6x8;
+    sizeInUse = Size::Font_6x8;
+    fontStyle = STYLE_NORMAL;
+    charWidthPix = textSize6x8CharWidthPix;
+    lengthMax = textSize6x8LengthMax;
+    batteryBars = batteryBarsHidden;
+}
+
+/**
+ * @brief Disable TWI and release I2C pins before removing display power
+ */
+void Display::releaseBus()
+{
+    TWCR &= ~_BV(TWEN);
+    digitalWrite(A4, LOW);
+    digitalWrite(A5, LOW);
+    pinMode(A4, INPUT);
+    pinMode(A5, INPUT);
 }
 
 /**

@@ -59,4 +59,11 @@ namespace Menu
      * @return New menu item if selected, current item if its functionality finished, nullptr otherwise
      */
     const Item *process(const Item *pItem, Action action);
+
+    /**
+     * @brief Check whether the current menu item's functionality is active
+     *
+     * @return true while a menu item's callback is running its functionality
+     */
+    bool isFunctionActive();
 } // namespace Menu

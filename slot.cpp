@@ -29,7 +29,7 @@ namespace
 
     // Slot item size + CRC size
     constexpr uint8_t slotStorageSize = sizeof(SlotItem) + sizeof(uint8_t);
-    static_assert(slotStorageSize == 20);
+    static_assert(slotStorageSize == slotStorageBytes);
 
     // CRC-8 parameters, set explicitly to keep storage format independent of CRC library defaults
     constexpr uint8_t crc8Polynome = 0x07;

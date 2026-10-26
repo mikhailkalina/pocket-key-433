@@ -7,7 +7,7 @@ using namespace Menu;
 namespace
 {
     // Menu item's functionality was active on the previous processing
-    bool isFunctionActive = false;
+    bool functionActive = false;
 
     const Item *navigate(const Item *pItem, Action action)
     {
@@ -81,12 +81,12 @@ const Item *Menu::process(const Item *pItem, Action action)
 
         if (functionState == FunctionState::Active)
         {
-            isFunctionActive = true;
+            functionActive = true;
         }
-        else if (isFunctionActive == true)
+        else if (functionActive == true)
         {
             // Functionality just finished - stay on the item instead of navigating with the same action
-            isFunctionActive = false;
+            functionActive = false;
             pNewItem = pItem;
         }
         else
@@ -97,4 +97,14 @@ const Item *Menu::process(const Item *pItem, Action action)
     }
 
     return pNewItem;
+}
+
+/**
+ * @brief Check whether the current menu item's functionality is active
+ *
+ * @return true while a menu item's callback is running its functionality
+ */
+bool Menu::isFunctionActive()
+{
+    return functionActive;
 }

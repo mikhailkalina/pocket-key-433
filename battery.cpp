@@ -159,3 +159,13 @@ bool Battery::isCharging()
 {
     return isChargingState;
 }
+
+/**
+ * @brief Return the current, unfiltered charger status on D8
+ *
+ * @return true when the active-LOW charger status pin is LOW
+ */
+bool Battery::isChargeSignalActive()
+{
+    return digitalRead(chargingPin) == chargingActiveLevel;
+}

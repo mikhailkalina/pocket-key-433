@@ -39,4 +39,11 @@ namespace Battery
    * @return true if battery is charging, false otherwise
    */
   bool isCharging();
+
+  /**
+   * @brief Return the unfiltered D8 charger signal for sleep decisions
+   *
+   * @return true while the active-LOW charger status pin is LOW
+   */
+  bool isChargeSignalActive();
 } // namespace Battery

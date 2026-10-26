@@ -6,6 +6,8 @@ namespace Slot
 {
     // Number of slot items
     static constexpr uint8_t slotsCount = 20;
+    static constexpr uint8_t slotStorageBytes = 20;
+    static constexpr uint16_t storageBytes = slotsCount * slotStorageBytes;
     static constexpr uint8_t invalidIdx = slotsCount;
     // Maximum name length
     static constexpr uint8_t nameLengthMax = 12;

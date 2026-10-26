@@ -50,6 +50,11 @@ namespace Display
   void initialize();
 
   /**
+   * @brief Disable TWI and release I2C pins before removing display power
+   */
+  void releaseBus();
+
+  /**
    * @brief Set inverted mode
    *
    * @param isInverted true for inverted mode, false for normal

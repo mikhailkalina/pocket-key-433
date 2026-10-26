@@ -40,6 +40,9 @@ namespace
         {Id::Left, 6, LOW},
         {Id::Right, 7, LOW},
     };
+
+    bool ignoreWakePress = false;
+    unsigned long allReleasedSinceMs = 0;
 } // namespace
 
 /**
@@ -63,6 +66,26 @@ Id Button::process()
     Id id = Id::None;
     // Get current system time
     unsigned long currentTimeMs = millis();
+
+    if (ignoreWakePress)
+    {
+        if (anyPressed())
+        {
+            allReleasedSinceMs = currentTimeMs;
+        }
+        else if (currentTimeMs - allReleasedSinceMs > debounceTimeMs)
+        {
+            ignoreWakePress = false;
+            for (ButtonItem &button : buttonList)
+            {
+                button.state = State::Released;
+                button.event = Event::None;
+                button.isActive = false;
+                button.levelChangeTimeMs = currentTimeMs;
+            }
+        }
+        return Id::None;
+    }
 
     for (ButtonItem &button : buttonList)
     {
@@ -164,4 +187,35 @@ Event Button::getEvent(Id id)
     }
 
     return event;
+}
+
+/**
+ * @brief Check raw button levels before entering sleep
+ *
+ * @return true if any button is currently pressed
+ */
+bool Button::anyPressed()
+{
+    for (const ButtonItem &button : buttonList)
+    {
+        if (digitalRead(button.pin) == button.activeLevel)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * @brief Ignore the wake press until all buttons have been released and debounced
+ */
+void Button::ignoreUntilReleased()
+{
+    ignoreWakePress = true;
+    allReleasedSinceMs = millis();
+    for (ButtonItem &button : buttonList)
+    {
+        button.event = Event::None;
+        button.state = State::Released;
+    }
 }
